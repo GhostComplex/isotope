@@ -24,7 +24,7 @@ from isotope_agents.presets import CODING
 from isotope_agents.session import SessionStore
 
 from .input import StreamInputHandler
-from .render import _print, _print_inline, _StreamBuffer
+from .render import _print, _print_inline, _StreamBuffer, render_markdown, render_tool_output
 
 PROXY_BASE_URL = "http://localhost:4141/v1"
 DEFAULT_MODEL = "claude-opus-4.6"
@@ -185,13 +185,24 @@ class TUI:
                         _print(f"\n  [calling {tool_name}]", style="tool")
 
                 elif event.type == "tool_end":
+                    tool_name = getattr(event, "tool_name", "?")
+                    tool_output = getattr(event, "output", "")
                     is_error = getattr(event, "is_error", False)
-                    if is_error:
+
+                    if buf:
+                        buf.flush()
+
+                    # Use rich rendering for tool output
+                    render_tool_output(tool_name, tool_output, is_error)
+
+                elif event.type == "message_end":
+                    # Render the completed assistant message as markdown
+                    message = getattr(event, "message", None)
+                    if isinstance(message, AssistantMessage) and message.text:
                         if buf:
                             buf.flush()
-                            print("  [tool error]")
-                        else:
-                            _print("  [tool error]", style="err")
+                        # Clear any buffered content and render as markdown
+                        render_markdown(message.text)
 
                 elif event.type == "turn_end":
                     msg = getattr(event, "message", None)
