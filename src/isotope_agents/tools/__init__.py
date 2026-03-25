@@ -30,7 +30,10 @@ def get_tool(name: str) -> Tool:
     Raises:
         KeyError: If the tool name is not registered.
     """
-    factory = TOOL_FACTORIES[name]
+    factory = TOOL_FACTORIES.get(name)
+    if factory is None:
+        available = ", ".join(sorted(TOOL_FACTORIES))
+        raise KeyError(f"Unknown tool: {name!r} (available: {available})")
     return factory()
 
 
