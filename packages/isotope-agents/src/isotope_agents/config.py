@@ -29,6 +29,7 @@ class IsotopeConfig:
     preset: str = "coding"
     debug: bool = False
     sessions_dir: str = "~/.isotope/sessions"
+    skills: list[str] = field(default_factory=lambda: ["~/.isotope/skills/"])
     provider: ProviderConfig = field(default_factory=ProviderConfig)
 
 
@@ -90,10 +91,16 @@ def load_config(path: Path | None = None) -> IsotopeConfig:
         api_key=str(provider_data.get("api_key", "")),
     )
 
+    skills_raw = raw.get("skills", ["~/.isotope/skills/"])
+    if not isinstance(skills_raw, list):
+        skills_raw = ["~/.isotope/skills/"]
+    skills = [str(s) for s in skills_raw]
+
     return IsotopeConfig(
         model=str(raw.get("model", "default")),
         preset=str(raw.get("preset", "coding")),
         debug=bool(raw.get("debug", False)),
         sessions_dir=str(raw.get("sessions_dir", "~/.isotope/sessions")),
+        skills=skills,
         provider=provider,
     )
