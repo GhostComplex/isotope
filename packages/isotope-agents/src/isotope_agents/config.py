@@ -22,6 +22,20 @@ class ProviderConfig:
 
 
 @dataclass
+class McpServerConfig:
+    """Configuration for a single MCP server.
+
+    Either ``command`` (stdio transport) or ``url`` (SSE transport) must
+    be provided.
+    """
+
+    name: str = ""
+    command: str = ""
+    args: list[str] = field(default_factory=list)
+    url: str = ""
+
+
+@dataclass
 class IsotopeConfig:
     """Main configuration for isotope-agents."""
 
@@ -29,7 +43,10 @@ class IsotopeConfig:
     preset: str = "coding"
     debug: bool = False
     sessions_dir: str = "~/.isotope/sessions"
+    skills: list[str] = field(default_factory=lambda: ["~/.isotope/skills/"])
+    tools: list[str] = field(default_factory=list)
     provider: ProviderConfig = field(default_factory=ProviderConfig)
+    mcp_servers: list[McpServerConfig] = field(default_factory=list)
 
 
 _ENV_VAR_RE = re.compile(r"\$\{([^}]+)\}")
@@ -90,10 +107,42 @@ def load_config(path: Path | None = None) -> IsotopeConfig:
         api_key=str(provider_data.get("api_key", "")),
     )
 
+    skills_raw = raw.get("skills", ["~/.isotope/skills/"])
+    if not isinstance(skills_raw, list):
+        skills_raw = ["~/.isotope/skills/"]
+    skills = [str(s) for s in skills_raw]
+
+    # Parse tools (module paths)
+    tools_raw = raw.get("tools", [])
+    if not isinstance(tools_raw, list):
+        tools_raw = []
+    tools = [str(t) for t in tools_raw]
+
+    # Parse MCP servers
+    mcp_servers: list[McpServerConfig] = []
+    mcp_data = raw.get("mcp", {})
+    if isinstance(mcp_data, dict):
+        for srv in mcp_data.get("servers", []):
+            if isinstance(srv, dict):
+                args_raw = srv.get("args", [])
+                if not isinstance(args_raw, list):
+                    args_raw = []
+                mcp_servers.append(
+                    McpServerConfig(
+                        name=str(srv.get("name", "")),
+                        command=str(srv.get("command", "")),
+                        args=[str(a) for a in args_raw],
+                        url=str(srv.get("url", "")),
+                    )
+                )
+
     return IsotopeConfig(
         model=str(raw.get("model", "default")),
         preset=str(raw.get("preset", "coding")),
         debug=bool(raw.get("debug", False)),
         sessions_dir=str(raw.get("sessions_dir", "~/.isotope/sessions")),
+        skills=skills,
+        tools=tools,
         provider=provider,
+        mcp_servers=mcp_servers,
     )

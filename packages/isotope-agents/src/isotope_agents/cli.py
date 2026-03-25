@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import os
 import sys
 from typing import NoReturn
@@ -16,7 +17,9 @@ from isotope_core.types import AgentEvent, AssistantMessage
 
 from isotope_agents import __version__
 from isotope_agents.agent import IsotopeAgent
+from isotope_agents.config import load_config
 from isotope_agents.presets import get_preset
+from isotope_agents.rpc.server import RpcServer
 from isotope_agents.session import SessionStore
 
 
@@ -92,6 +95,16 @@ def create_parser() -> argparse.ArgumentParser:
         type=int,
         default=10,
         help="Maximum number of sessions to display (default: 10)",
+    )
+
+    # RPC command
+    rpc_parser = subparsers.add_parser(
+        "rpc",
+        help="Start JSONL-over-stdio RPC server",
+    )
+    rpc_parser.add_argument(
+        "--session",
+        help="Resume an existing session by session ID",
     )
 
     return parser
@@ -266,6 +279,50 @@ def list_sessions(limit: int = 10) -> None:
         sys.exit(1)
 
 
+def run_rpc(model: str, preset: str, session_id: str | None = None) -> None:
+    """Start the JSONL-over-stdio RPC server.
+
+    Loads config, creates an IsotopeAgent, wraps it in an RpcServer,
+    and runs until stdin is closed.  All log output goes to stderr so
+    that stdout is reserved exclusively for JSONL events.
+
+    Args:
+        model: Model name to use.
+        preset: Preset configuration name.
+        session_id: Optional session ID to resume.
+    """
+    # Configure logging to stderr so stdout stays clean for JSONL
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
+
+    config = load_config()
+
+    # CLI flags override config-file values
+    effective_model = model if model != DEFAULT_MODEL else (config.model if config.model != "default" else DEFAULT_MODEL)
+
+    provider = ProxyProvider(
+        model=effective_model,
+        base_url=config.provider.base_url + "/v1",
+        api_key=config.provider.api_key or "not-needed",
+    )
+
+    preset_config = get_preset(preset)
+
+    agent = IsotopeAgent(
+        provider=provider,
+        preset=preset_config,
+        model=effective_model,
+        workspace=os.getcwd(),
+        session_id=session_id,
+    )
+
+    server = RpcServer(agent)
+    asyncio.run(server.run())
+
+
 def main() -> NoReturn:
     """Main CLI entry point."""
     parser = create_parser()
@@ -297,6 +354,11 @@ def main() -> NoReturn:
 
     elif args.command == "sessions":
         list_sessions(args.limit)
+        sys.exit(0)
+
+    elif args.command == "rpc":
+        session_id = getattr(args, "session", None)
+        run_rpc(args.model, args.preset, session_id)
         sys.exit(0)
 
     else:
