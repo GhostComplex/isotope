@@ -108,6 +108,53 @@ class TestCLI:
         assert args.preset == "coding"
         assert args.no_tools is False
 
+    def test_rpc_command_parses(self) -> None:
+        """RPC command parses correctly."""
+        parser = create_parser()
+        args = parser.parse_args(["rpc"])
+        assert args.command == "rpc"
+
+    def test_rpc_command_with_session_flag(self) -> None:
+        """RPC command with --session flag parses correctly."""
+        parser = create_parser()
+        args = parser.parse_args(["rpc", "--session", "abc123"])
+        assert args.command == "rpc"
+        assert args.session == "abc123"
+
+    def test_rpc_command_with_preset(self) -> None:
+        """RPC command with --preset flag parses correctly."""
+        parser = create_parser()
+        args = parser.parse_args(["--preset", "coding", "rpc"])
+        assert args.command == "rpc"
+        assert args.preset == "coding"
+
+    def test_rpc_command_with_model(self) -> None:
+        """RPC command with --model flag parses correctly."""
+        parser = create_parser()
+        args = parser.parse_args(["--model", "claude-sonnet-4-20250514", "rpc"])
+        assert args.command == "rpc"
+        assert args.model == "claude-sonnet-4-20250514"
+
+    def test_rpc_command_with_all_flags(self) -> None:
+        """RPC command with all flags parses correctly."""
+        parser = create_parser()
+        args = parser.parse_args([
+            "--model", "claude-sonnet-4-20250514",
+            "--preset", "assistant",
+            "rpc",
+            "--session", "xyz789",
+        ])
+        assert args.command == "rpc"
+        assert args.model == "claude-sonnet-4-20250514"
+        assert args.preset == "assistant"
+        assert args.session == "xyz789"
+
+    def test_rpc_appears_in_help(self) -> None:
+        """RPC subcommand appears in help output."""
+        parser = create_parser()
+        help_text = parser.format_help()
+        assert "rpc" in help_text
+
     def test_main_with_no_command_exits(self) -> None:
         """Main function exits when no command is provided."""
         with patch("sys.argv", ["isotope"]):
