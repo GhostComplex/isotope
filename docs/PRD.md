@@ -1,6 +1,6 @@
 # Isotope — PRD v4
 
-**A Python coding agent — isotope-core powered, pi-mono inspired.**
+**A pluggable Python agent framework — configure it as a coding agent, personal assistant, or anything in between.**
 
 ---
 
@@ -8,13 +8,33 @@
 
 Two Python packages:
 
-| Package | Role | Equivalent |
-|---|---|---|
-| `isotope-core` | LLM providers, agent loop, middleware, events, context | `pi-ai` + `pi-agent-core` |
-| `isotope-agents` | Coding agent, tools, TUI, sessions, RPC, extensions | `pi-coding-agent` |
+| Package | Role |
+|---|---|
+| `isotope-core` | LLM providers, agent loop, middleware, events, context |
+| `isotope-agents` | Agent framework: tools, TUI, sessions, RPC, extensions, presets |
 
 `isotope-core` already exists (5.3k LoC, 97% test coverage, async, Pydantic v2).
 `isotope-agents` builds on top — and starts with existing TUI code from isotope-core.
+
+Isotope is **role-agnostic**. It ships a set of decoupled tools and preset configurations. Users choose (or create) a preset that defines the agent's role:
+
+```yaml
+# ~/.isotope/config.yaml
+preset: coding        # or: assistant, researcher, custom
+
+# Presets define: system prompt, enabled tools, behavior
+# Users can override any preset setting
+```
+
+### Built-in Presets
+
+| Preset | System Prompt | Tools | Use Case |
+|---|---|---|---|
+| `coding` | "You are a coding agent..." | bash, read, write, edit, grep, glob | Software development |
+| `assistant` | "You are a personal assistant..." | bash, read, write, web_search, web_fetch, memory | General tasks, research |
+| `minimal` | (none) | (none) | Bare LLM, user adds tools via extensions/MCP |
+
+Users can create custom presets or extend existing ones. The tool system is fully pluggable — add tools via Python API, config file, or MCP servers.
 
 ---
 
@@ -48,11 +68,12 @@ isotope-core already has a working TUI (`tui/main.py`, ~1060 LoC) with:
 ## 4. Architecture
 
 ```
-isotope-agents (the product)
-├── Agent         — coding agent wrapping isotope-core loop
+isotope-agents (the framework)
+├── Agent         — agent wrapping isotope-core loop
+├── Presets       — role configurations (coding, assistant, minimal, custom)
 ├── Tools         — modularized from existing TUI + new tools
 │   ├── Existing  — bash (terminal), read_file, write_file, edit_file
-│   └── New       — grep, glob/ls, web_search, web_fetch
+│   └── New       — grep, glob/ls, web_search, web_fetch, memory
 ├── TUI           — lifted from isotope-core tui/main.py
 │   ├── Existing  — streaming, steering, slash commands, prompt-toolkit
 │   └── New       — markdown rendering (rich), session switching
@@ -75,14 +96,18 @@ isotope-core (exists, separate repo)
 ### How It Runs
 
 ```
-# Interactive TUI (primary mode)
+# Interactive TUI with default preset
 isotope chat
 
+# Use a specific preset
+isotope chat --preset coding
+isotope chat --preset assistant
+
 # One-shot
-isotope run "fix the bug in auth.py"
+isotope run "fix the bug in auth.py" --preset coding
 
 # Print mode (non-interactive, for scripting)
-isotope run --print "explain this codebase"
+isotope run --print "summarize this document"
 
 # RPC mode (for embedding in other apps)
 isotope rpc
@@ -94,16 +119,19 @@ isotope rpc
 
 ### 5.1 Tools
 
-| Tool | Source | Status |
-|---|---|---|
-| `BashTool` | Existing `terminal` tool from TUI | ✅ Lift & rename |
-| `ReadTool` | Existing `read_file` from TUI | ✅ Lift |
-| `WriteTool` | Existing `write_file` from TUI | ✅ Lift |
-| `EditTool` | Existing `edit_file` from TUI | ✅ Lift |
-| `GrepTool` | New (ripgrep-backed) | 🆕 Build |
-| `GlobTool` / `LsTool` | New (glob patterns, directory listing) | 🆕 Build |
-| `WebSearchTool` | New (Brave/SerpAPI) | 🆕 Build |
-| `WebFetchTool` | New (URL content extraction) | 🆕 Build |
+| Tool | Source | Presets | Status |
+|---|---|---|---|
+| `BashTool` | Existing `terminal` tool from TUI | coding, assistant | ✅ Lift & rename |
+| `ReadTool` | Existing `read_file` from TUI | coding, assistant | ✅ Lift |
+| `WriteTool` | Existing `write_file` from TUI | coding, assistant | ✅ Lift |
+| `EditTool` | Existing `edit_file` from TUI | coding | ✅ Lift |
+| `GrepTool` | New (ripgrep-backed) | coding | 🆕 Build |
+| `GlobTool` / `LsTool` | New (glob patterns, directory listing) | coding | 🆕 Build |
+| `WebSearchTool` | New (Brave/SerpAPI) | assistant | 🆕 Build |
+| `WebFetchTool` | New (URL content extraction) | assistant | 🆕 Build |
+| `MemoryTool` | New (persistent key-value memory) | assistant | 🆕 Build |
+
+All tools are available to all presets — the table shows which presets enable them **by default**. Users can add/remove tools from any preset via config.
 
 ### 5.2 TUI
 
@@ -170,6 +198,7 @@ isotope/                          # this repo
 ├── src/isotope_agents/
 │   ├── __init__.py
 │   ├── agent.py                  # Agent class wrapping isotope-core
+│   ├── presets.py                # Built-in preset definitions
 │   ├── session.py                # Session management
 │   ├── compaction.py             # Context compaction
 │   ├── extensions.py             # Extension/plugin system
@@ -190,7 +219,8 @@ isotope/                          # this repo
 │       ├── grep.py               # 🆕
 │       ├── glob.py               # 🆕
 │       ├── web_search.py         # 🆕
-│       └── web_fetch.py          # 🆕
+│       ├── web_fetch.py          # 🆕
+│       └── memory.py             # 🆕
 ├── tests/
 ├── pyproject.toml
 └── README.md
@@ -227,19 +257,20 @@ isotope = "isotope_agents.cli:main"
 
 ### M1: Lift + Modularize + Ship (Week 1)
 
-**Goal:** Extract existing code from isotope-core, modularize, add missing tools, ship to PyPI.
+**Goal:** Extract existing code, modularize, add preset system, ship to PyPI.
 
 - [ ] Lift TUI code from `isotope-core/tui/main.py` into `isotope_agents/tui/`
 - [ ] Extract inline tools into separate files (`tools/bash.py`, `tools/read.py`, etc.)
 - [ ] Add GrepTool (ripgrep-backed)
 - [ ] Add GlobTool / LsTool
-- [ ] Agent class wrapping isotope-core loop with proper tool registration
-- [ ] System prompt with tool instructions
+- [ ] Preset system with `coding` and `assistant` presets
+- [ ] Agent class wrapping isotope-core loop with preset-based tool registration
 - [ ] CLI entry point: `isotope run "prompt"` (print mode) + `isotope chat` (TUI)
+- [ ] `--preset` flag for CLI
 - [ ] Tests
 - [ ] PyPI release: `pip install isotope-agents`
 
-**Ship:** `pip install isotope-agents[tui]` → `isotope chat` works with all existing TUI features + grep/glob tools.
+**Ship:** `pip install isotope-agents[tui]` → `isotope chat --preset coding` works with all existing TUI features + grep/glob tools. `isotope chat --preset assistant` works with web/memory tools.
 
 ---
 
