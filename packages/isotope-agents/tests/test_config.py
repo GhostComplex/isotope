@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from isotope_agents.config import load_config
+from isotope_agents.config import IsotopeConfig, load_config
 
 
 class TestLoadConfig:
@@ -91,3 +91,33 @@ class TestLoadConfig:
         cfg_file.write_text("just a string\n")
         config = load_config(cfg_file)
         assert config.model == "default"
+
+    def test_tools_default_empty(self) -> None:
+        """Default config has an empty tools list."""
+        config = IsotopeConfig()
+        assert config.tools == []
+
+    def test_tools_in_config(self, tmp_path: Path) -> None:
+        """Tools list is loaded from YAML config."""
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text(
+            "tools:\n"
+            "  - mypackage.tools.custom\n"
+            "  - another.module\n"
+        )
+        config = load_config(cfg_file)
+        assert config.tools == ["mypackage.tools.custom", "another.module"]
+
+    def test_tools_invalid_type_returns_empty(self, tmp_path: Path) -> None:
+        """Non-list tools value falls back to empty list."""
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text("tools: not-a-list\n")
+        config = load_config(cfg_file)
+        assert config.tools == []
+
+    def test_tools_missing_returns_empty(self, tmp_path: Path) -> None:
+        """Missing tools key results in empty list."""
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text("model: default\n")
+        config = load_config(cfg_file)
+        assert config.tools == []

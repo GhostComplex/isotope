@@ -16,6 +16,7 @@ from isotope_core.types import UserMessage, AgentEvent, TurnEndEvent, TextConten
 from isotope_agents.compaction import CompactionResult, compact_messages, _estimate_messages_tokens
 from isotope_agents.presets import Preset, get_preset
 from isotope_agents.session import SessionStore
+from isotope_agents.tool_loader import load_tools_from_config
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class IsotopeAgent:
         model: str | None = None,
         system_prompt: str | None = None,
         extra_tools: list[Tool] | None = None,
+        tool_paths: list[str] | None = None,
         workspace: str | None = None,
         session_id: str | None = None,
         session_store: SessionStore | None = None,
@@ -64,6 +66,7 @@ class IsotopeAgent:
             model: Model name (provider-specific).
             system_prompt: Override the preset's system prompt.
             extra_tools: Additional tools beyond the preset's tools.
+            tool_paths: Dotted Python module paths to load extra tools from.
             workspace: Working directory (defaults to cwd).
             session_id: Existing session ID to resume (requires session_store).
             session_store: Session store for conversation persistence.
@@ -100,6 +103,8 @@ class IsotopeAgent:
         self._tools = list(self._preset.tools)
         if extra_tools:
             self._tools.extend(extra_tools)
+        if tool_paths:
+            self._tools.extend(load_tools_from_config(tool_paths))
 
         # Patch workspace on tools that need it
         self._patch_tool_workspaces(self._tools)

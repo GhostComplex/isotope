@@ -44,6 +44,7 @@ class IsotopeConfig:
     debug: bool = False
     sessions_dir: str = "~/.isotope/sessions"
     skills: list[str] = field(default_factory=lambda: ["~/.isotope/skills/"])
+    tools: list[str] = field(default_factory=list)
     provider: ProviderConfig = field(default_factory=ProviderConfig)
     mcp_servers: list[McpServerConfig] = field(default_factory=list)
 
@@ -111,6 +112,12 @@ def load_config(path: Path | None = None) -> IsotopeConfig:
         skills_raw = ["~/.isotope/skills/"]
     skills = [str(s) for s in skills_raw]
 
+    # Parse tools (module paths)
+    tools_raw = raw.get("tools", [])
+    if not isinstance(tools_raw, list):
+        tools_raw = []
+    tools = [str(t) for t in tools_raw]
+
     # Parse MCP servers
     mcp_servers: list[McpServerConfig] = []
     mcp_data = raw.get("mcp", {})
@@ -135,6 +142,7 @@ def load_config(path: Path | None = None) -> IsotopeConfig:
         debug=bool(raw.get("debug", False)),
         sessions_dir=str(raw.get("sessions_dir", "~/.isotope/sessions")),
         skills=skills,
+        tools=tools,
         provider=provider,
         mcp_servers=mcp_servers,
     )
