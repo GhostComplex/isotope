@@ -1,0 +1,155 @@
+"""Preset configurations for isotope-agents.
+
+Presets define which tools and system prompt to use for different
+agent roles: coding, assistant, minimal, or custom.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from isotope_core.tools import Tool
+
+from isotope_agents.tools.bash import bash
+from isotope_agents.tools.edit import edit_file
+from isotope_agents.tools.glob import glob_tool
+from isotope_agents.tools.grep import grep
+from isotope_agents.tools.read import read_file
+from isotope_agents.tools.write import write_file
+
+
+# =============================================================================
+# System prompts
+# =============================================================================
+
+_CODING_PROMPT = """\
+You are isotope, an expert software engineer assistant. You help users with \
+coding tasks including writing, reading, editing, and debugging code.
+
+Your workspace directory is {cwd}.
+
+Guidelines:
+- Read files before editing to understand context.
+- Use edit_file for surgical changes; use write_file only for new files or \
+full rewrites.
+- Use grep to search codebases efficiently.
+- Use glob to discover file structure.
+- Keep responses concise and actionable.
+"""
+
+_ASSISTANT_PROMPT = """\
+You are isotope, a helpful assistant. You can run shell commands and \
+search the web to help answer questions.
+
+Your workspace directory is {cwd}.
+
+Guidelines:
+- Be concise and accurate.
+- Use tools when they'd help answer the question.
+- Cite sources when relevant.
+"""
+
+_MINIMAL_PROMPT = """\
+You are isotope, a minimal assistant.
+
+Your workspace directory is {cwd}.
+"""
+
+
+# =============================================================================
+# Preset dataclass
+# =============================================================================
+
+
+@dataclass
+class Preset:
+    """Agent preset configuration.
+
+    Attributes:
+        name: Preset name (coding, assistant, minimal, custom).
+        system_prompt: System prompt template (supports {cwd} placeholder).
+        tools: List of Tool instances for this preset.
+        description: Human-readable description.
+    """
+
+    name: str
+    system_prompt: str
+    tools: list[Tool] = field(default_factory=list)
+    description: str = ""
+
+    def format_system_prompt(self, **kwargs: Any) -> str:
+        """Format the system prompt with runtime values."""
+        return self.system_prompt.format(**kwargs)
+
+
+# =============================================================================
+# Tool sets
+# =============================================================================
+
+
+def _coding_tools() -> list[Tool]:
+    """All tools for the coding preset."""
+    return [read_file, write_file, edit_file, bash, grep, glob_tool]
+
+
+def _assistant_tools() -> list[Tool]:
+    """Tools for the assistant preset (no file write/edit)."""
+    return [read_file, bash, grep, glob_tool]
+
+
+def _minimal_tools() -> list[Tool]:
+    """Minimal tools."""
+    return [bash]
+
+
+# =============================================================================
+# Built-in presets
+# =============================================================================
+
+
+CODING = Preset(
+    name="coding",
+    system_prompt=_CODING_PROMPT,
+    tools=_coding_tools(),
+    description="Full coding agent with file read/write/edit, bash, grep, glob.",
+)
+
+ASSISTANT = Preset(
+    name="assistant",
+    system_prompt=_ASSISTANT_PROMPT,
+    tools=_assistant_tools(),
+    description="General assistant with read-only file access and bash.",
+)
+
+MINIMAL = Preset(
+    name="minimal",
+    system_prompt=_MINIMAL_PROMPT,
+    tools=_minimal_tools(),
+    description="Minimal agent with bash only.",
+)
+
+# Registry for lookup by name
+PRESETS: dict[str, Preset] = {
+    "coding": CODING,
+    "assistant": ASSISTANT,
+    "minimal": MINIMAL,
+}
+
+
+def get_preset(name: str) -> Preset:
+    """Get a preset by name.
+
+    Args:
+        name: Preset name.
+
+    Returns:
+        The preset configuration.
+
+    Raises:
+        KeyError: If preset name is not found.
+    """
+    if name not in PRESETS:
+        available = ", ".join(sorted(PRESETS.keys()))
+        raise KeyError(f"Unknown preset '{name}'. Available: {available}")
+    return PRESETS[name]

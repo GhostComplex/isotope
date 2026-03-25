@@ -71,6 +71,7 @@ from isotope_core.tools import (
     ToolNotFoundError,
     ToolResult,
     ToolValidationError,
+    auto_tool,
     tool,
 )
 from isotope_core.types import (
@@ -171,6 +172,7 @@ __all__ = [
     "Tool",
     "ToolResult",
     "tool",
+    "auto_tool",
     "ToolError",
     "ToolValidationError",
     "ToolNotFoundError",
