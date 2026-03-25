@@ -2,16 +2,25 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 from typing import Any, AsyncGenerator
 
 from isotope_core import Agent
+from isotope_core.context import FileTracker
 from isotope_core.providers.base import Provider
 from isotope_core.tools import Tool
 from isotope_core.types import UserMessage, AgentEvent, TurnEndEvent, TextContent
 
+from isotope_agents.compaction import CompactionResult, compact_messages, _estimate_messages_tokens
 from isotope_agents.presets import Preset, get_preset
 from isotope_agents.session import SessionStore
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_CONTEXT_WINDOW = 128_000
+_COMPACTION_THRESHOLD = 0.80  # 80% of context window
 
 
 class IsotopeAgent:
@@ -44,6 +53,8 @@ class IsotopeAgent:
         workspace: str | None = None,
         session_id: str | None = None,
         session_store: SessionStore | None = None,
+        context_window: int = _DEFAULT_CONTEXT_WINDOW,
+        file_tracker: FileTracker | None = None,
     ) -> None:
         """Initialize the agent.
 
@@ -56,12 +67,20 @@ class IsotopeAgent:
             workspace: Working directory (defaults to cwd).
             session_id: Existing session ID to resume (requires session_store).
             session_store: Session store for conversation persistence.
+            context_window: Context window size in tokens (default 128000).
+            file_tracker: FileTracker instance for tracking file operations.
+                If not provided, one is created automatically.
         """
         self._workspace = workspace or os.getcwd()
 
         # Store session persistence components
         self._session_store = session_store
         self._session_id = session_id
+
+        # Compaction support
+        self._provider = provider
+        self._context_window = context_window
+        self._file_tracker = file_tracker or FileTracker()
 
         # Resolve preset
         if isinstance(preset, str):
@@ -176,6 +195,9 @@ class IsotopeAgent:
 
             yield event
 
+        # After the turn completes, check if auto-compaction is needed
+        await self._maybe_auto_compact()
+
     async def _handle_session_event(self, event: AgentEvent) -> None:
         """Handle an agent event for session persistence."""
         if not self._session_store or not self._session_id:
@@ -190,6 +212,89 @@ class IsotopeAgent:
             for tool_result in event.tool_results:
                 entry = self._session_store.message_to_entry(tool_result)
                 self._session_store.append(self._session_id, entry)
+
+    async def _maybe_auto_compact(self) -> CompactionResult | None:
+        """Check if auto-compaction should be triggered and perform it if so.
+
+        Compaction is triggered when the estimated token count exceeds
+        80% of the context window.
+
+        Returns:
+            CompactionResult if compaction was performed, None otherwise.
+        """
+        messages = self._agent.messages
+        if not messages:
+            return None
+
+        estimated_tokens = _estimate_messages_tokens(messages)
+        threshold = int(self._context_window * _COMPACTION_THRESHOLD)
+
+        if estimated_tokens <= threshold:
+            return None
+
+        logger.info(
+            "Auto-compaction triggered: ~%d tokens > %d threshold",
+            estimated_tokens,
+            threshold,
+        )
+        return await self.compact()
+
+    async def compact(self) -> CompactionResult:
+        """Manually trigger compaction of the conversation history.
+
+        Compacts older messages into a summary, preserving recent context
+        and file operation metadata. Replaces the agent's message history
+        with a summary message plus the most recent messages.
+
+        Returns:
+            CompactionResult with summary text, file lists, and token stats.
+        """
+        messages = self._agent.messages
+
+        result = await compact_messages(
+            messages=messages,
+            provider=self._provider,
+            file_tracker=self._file_tracker,
+        )
+
+        if result.summary and result.messages_compacted > 0:
+            # Build new message list: summary as a system-like user message + kept messages
+            summary_msg = UserMessage(
+                content=[TextContent(text=f"[Compacted conversation summary]\n{result.summary}")],
+                timestamp=int(time.time() * 1000),
+                pinned=True,
+            )
+
+            # Keep the last N messages (same as keep_last_n default = 4)
+            keep_last_n = 4
+            if len(messages) > keep_last_n:
+                kept_messages = messages[-keep_last_n:]
+            else:
+                kept_messages = list(messages)
+
+            new_messages = [summary_msg] + kept_messages
+            self._agent.replace_messages(new_messages)
+
+            # Store compaction entry to session if persistence enabled
+            if self._session_store and self._session_id:
+                from isotope_agents.session import SessionEntry
+                from datetime import datetime, timezone
+
+                compaction_entry = SessionEntry(
+                    type="compaction",
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    data={
+                        "summary": result.summary,
+                        "files_read": result.files_read,
+                        "files_modified": result.files_modified,
+                        "messages_compacted": result.messages_compacted,
+                        "tokens_before": result.tokens_before,
+                        "tokens_after": result.tokens_after,
+                    },
+                )
+                self._session_store.append(self._session_id, compaction_entry)
+
+        return result
 
     async def follow_up(self, message: str) -> None:
         """Queue a follow-up message for the agent.
@@ -235,3 +340,13 @@ class IsotopeAgent:
     def session_id(self) -> str | None:
         """The current session ID (if session persistence is enabled)."""
         return self._session_id
+
+    @property
+    def file_tracker(self) -> FileTracker:
+        """The file tracker for this agent."""
+        return self._file_tracker
+
+    @property
+    def context_window(self) -> int:
+        """The context window size in tokens."""
+        return self._context_window

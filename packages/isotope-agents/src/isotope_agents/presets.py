@@ -16,6 +16,8 @@ from isotope_agents.tools.edit import edit_file
 from isotope_agents.tools.glob import glob_tool
 from isotope_agents.tools.grep import grep
 from isotope_agents.tools.read import read_file
+from isotope_agents.tools.web_fetch import web_fetch
+from isotope_agents.tools.web_search import web_search
 from isotope_agents.tools.write import write_file
 
 
@@ -29,12 +31,28 @@ coding tasks including writing, reading, editing, and debugging code.
 
 Your workspace directory is {cwd}.
 
+Available tools:
+- read_file: Read file contents.
+- write_file: Create new files or fully rewrite existing ones.
+- edit_file: Make surgical edits to existing files.
+- bash: Run shell commands.
+- grep: Search file contents with regex patterns.
+- glob_tool: Discover files by glob patterns.
+- web_search: Search the web for documentation or solutions.
+- web_fetch: Fetch and read content from a specific URL.
+
 Guidelines:
 - Read files before editing to understand context.
+- When you read or modify files, note the paths — they are tracked for \
+context management.
 - Use edit_file for surgical changes; use write_file only for new files or \
 full rewrites.
 - Use grep to search codebases efficiently.
 - Use glob to discover file structure.
+- Use web_search to find documentation or solutions. Use web_fetch to read \
+specific pages.
+- If an approach is not working after 2 attempts, try a different strategy \
+or ask for clarification.
 - Keep responses concise and actionable.
 """
 
@@ -45,8 +63,10 @@ search the web to help answer questions.
 Your workspace directory is {cwd}.
 
 Guidelines:
-- Be concise and accurate.
+- Be concise and direct. Prefer short answers unless detail is requested.
 - Use tools when they'd help answer the question.
+- Use web_search to find documentation or solutions. Use web_fetch to read \
+specific pages.
 - Cite sources when relevant.
 """
 
@@ -90,12 +110,12 @@ class Preset:
 
 def _coding_tools() -> list[Tool]:
     """All tools for the coding preset."""
-    return [read_file, write_file, edit_file, bash, grep, glob_tool]
+    return [read_file, write_file, edit_file, bash, grep, glob_tool, web_search, web_fetch]
 
 
 def _assistant_tools() -> list[Tool]:
     """Tools for the assistant preset (no file write/edit)."""
-    return [read_file, bash, grep, glob_tool]
+    return [read_file, bash, grep, glob_tool, web_search, web_fetch]
 
 
 def _minimal_tools() -> list[Tool]:
@@ -112,14 +132,14 @@ CODING = Preset(
     name="coding",
     system_prompt=_CODING_PROMPT,
     tools=_coding_tools(),
-    description="Full coding agent with file read/write/edit, bash, grep, glob.",
+    description="Full coding agent with file read/write/edit, bash, grep, glob, and web tools.",
 )
 
 ASSISTANT = Preset(
     name="assistant",
     system_prompt=_ASSISTANT_PROMPT,
     tools=_assistant_tools(),
-    description="General assistant with read-only file access and bash.",
+    description="General assistant with read-only file access, bash, and web tools.",
 )
 
 MINIMAL = Preset(

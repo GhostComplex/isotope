@@ -12,7 +12,7 @@ import json
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from isotope_core.middleware import (
     LifecycleHooks,
@@ -46,6 +46,9 @@ from isotope_core.types import (
     TurnStartEvent,
     UserMessage,
 )
+
+if TYPE_CHECKING:
+    from isotope_core.context import FileTracker
 
 # =============================================================================
 # Configuration Types
@@ -134,6 +137,7 @@ class AgentLoopConfig:
     middleware: list[Any] | None = None  # list[Middleware]
     lifecycle_hooks: LifecycleHooks | None = None
     loop_detection: LoopDetectionConfig = field(default_factory=LoopDetectionConfig)
+    file_tracker: FileTracker | None = None
 
 
 # =============================================================================
@@ -198,6 +202,30 @@ def _check_loop_detection(
             return False, None, True
 
     return False, None, False
+
+
+# Map tool names to file tracker operations
+_FILE_TOOL_MAP: dict[str, str] = {
+    "read_file": "read",
+    "write_file": "write",
+    "edit_file": "edit",
+}
+
+
+def _track_file_operation(tracker: FileTracker, tool_call: ToolCallContent) -> None:
+    """Record a file operation in the tracker based on the tool call."""
+    operation = _FILE_TOOL_MAP.get(tool_call.name)
+    if operation is None:
+        return
+    path = tool_call.arguments.get("path")
+    if not path:
+        return
+    if operation == "read":
+        tracker.record_read(path)
+    elif operation == "write":
+        tracker.record_write(path)
+    elif operation == "edit":
+        tracker.record_edit(path)
 
 
 # =============================================================================
@@ -578,6 +606,11 @@ async def agent_loop(
                 me_evt = await _emit(MessageEndEvent(message=result_msg))
                 if me_evt is not None:
                     yield me_evt
+
+            # File operation tracking
+            if config.file_tracker is not None:
+                for tool_call in tool_calls:
+                    _track_file_operation(config.file_tracker, tool_call)
 
             # Loop detection: track tool calls and check for loops
             for tool_call in tool_calls:

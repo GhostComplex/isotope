@@ -37,6 +37,7 @@ BETWEEN_MESSAGE_COMMANDS = (
     "/model <name>   Switch model",
     "/system <text>  Change system prompt",
     "/clear          Clear conversation",
+    "/compact        Compact conversation history",
     "/history        Show usage stats",
     "/sessions       List sessions",
     "/debug          Toggle debug mode",
@@ -116,7 +117,7 @@ class TUI:
     def _print_known_commands() -> None:
         """Print the short known-command summary."""
         _print(
-            "Commands: /tools /model /system /clear /history /sessions /debug /help /quit",
+            "Commands: /tools /model /system /clear /compact /history /sessions /debug /help /quit",
             style="dim",
         )
 
@@ -463,6 +464,26 @@ class TUI:
                 _print(f"New session: {self.agent.session_id}", style="info")
             else:
                 _print("Conversation cleared.", style="info")
+            return False
+
+        if cmd == "/compact":
+            if self.agent is None:
+                _print("No active agent. Send a message first.", style="warn")
+                return False
+            try:
+                result = await self.agent.compact()
+                if result.messages_compacted > 0:
+                    saved = result.tokens_before - result.tokens_after
+                    _print(
+                        f"Compacted {result.messages_compacted} messages, "
+                        f"saved ~{saved} tokens. "
+                        f"Files: read={result.files_read}, modified={result.files_modified}",
+                        style="info",
+                    )
+                else:
+                    _print("Nothing to compact (too few messages).", style="info")
+            except Exception as e:
+                _print(f"Compaction failed: {e}", style="warn")
             return False
 
         if cmd == "/history":

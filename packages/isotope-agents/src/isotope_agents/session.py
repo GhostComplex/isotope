@@ -311,6 +311,20 @@ class SessionStore:
                     pinned=data.get("pinned", False),
                 ))
 
+            elif entry.type == "compaction":
+                # Treat compaction entries as system-like user messages
+                # with the summary text, so they are replayed on resume.
+                data = entry.data
+                summary = data.get("summary", "")
+                if summary:
+                    messages.append(UserMessage(
+                        content=[TextContent(
+                            text=f"[Compacted conversation summary]\n{summary}",
+                        )],
+                        timestamp=int(datetime.fromisoformat(entry.timestamp.replace('Z', '+00:00')).timestamp() * 1000),
+                        pinned=True,
+                    ))
+
         return messages
 
     def message_to_entry(self, message: Message) -> SessionEntry:

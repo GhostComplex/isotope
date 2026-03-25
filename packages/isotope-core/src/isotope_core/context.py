@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 from isotope_core.providers.base import Provider
@@ -22,6 +22,43 @@ from isotope_core.types import (
     ToolSchema,
     UserMessage,
 )
+
+# =============================================================================
+# File Operation Tracking
+# =============================================================================
+
+
+@dataclass
+class FileTracker:
+    """Tracks file operations across the session for compaction."""
+
+    files_read: set[str] = field(default_factory=set)
+    files_modified: set[str] = field(default_factory=set)
+
+    def record_read(self, path: str) -> None:
+        """Record a file read operation."""
+        self.files_read.add(path)
+
+    def record_write(self, path: str) -> None:
+        """Record a file write operation."""
+        self.files_modified.add(path)
+
+    def record_edit(self, path: str) -> None:
+        """Record a file edit operation."""
+        self.files_modified.add(path)
+
+    def snapshot(self) -> dict[str, list[str]]:
+        """Return a snapshot of tracked files as sorted lists."""
+        return {
+            "files_read": sorted(self.files_read),
+            "files_modified": sorted(self.files_modified),
+        }
+
+    def reset(self) -> None:
+        """Clear all tracked file operations."""
+        self.files_read.clear()
+        self.files_modified.clear()
+
 
 # =============================================================================
 # Optional tiktoken import

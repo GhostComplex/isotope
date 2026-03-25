@@ -7,6 +7,7 @@ from isotope_core.agent import Agent, AgentState
 from isotope_core.context import (
     MODEL_CONTEXT_WINDOWS,
     ContextUsage,
+    FileTracker,
     PruneResult,
     PruningStrategy,
     SelectivePruningStrategy,
@@ -112,6 +113,7 @@ __all__ = [
     # Context Management
     "MODEL_CONTEXT_WINDOWS",
     "ContextUsage",
+    "FileTracker",
     "PruneResult",
     "PruningStrategy",
     "SlidingWindowStrategy",
