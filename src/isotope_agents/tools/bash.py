@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from isotopo_core.tools import Tool, ToolResult
+from isotope_core.tools import Tool, ToolResult
 
 
 def make_bash_tool() -> Tool:

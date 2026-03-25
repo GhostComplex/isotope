@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from isotopo_core.tools import Tool
+from isotope_core.tools import Tool
 
 from isotope_agents.tools.bash import make_bash_tool
 from isotope_agents.tools.edit import make_edit_tool

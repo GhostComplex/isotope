@@ -10,7 +10,7 @@ import asyncio
 import contextlib
 from collections.abc import AsyncGenerator
 
-from isotopo_core.types import AgentEvent, AssistantMessage
+from isotope_core.types import AgentEvent, AssistantMessage
 
 from isotope_agents.agent import IsotopeAgent
 from isotope_agents.tui.commands import handle_command, handle_stream_input_line

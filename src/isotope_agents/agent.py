@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from isotopo_core import Agent
-from isotopo_core.providers.base import Provider
-from isotopo_core.providers.proxy import ProxyProvider
-from isotopo_core.tools import Tool
+from isotope_core import Agent
+from isotope_core.providers.base import Provider
+from isotope_core.providers.proxy import ProxyProvider
+from isotope_core.tools import Tool
 
 from isotope_agents.config import IsotopeConfig
 from isotope_agents.presets import PRESETS, Preset
