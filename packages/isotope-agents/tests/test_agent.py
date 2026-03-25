@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from isotope_agents.agent import IsotopeAgent
-from isotope_agents.presets import ASSISTANT, CODING, MINIMAL
+from isotope_agents.presets import ASSISTANT
 
 
 class TestIsotopeAgent:

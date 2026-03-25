@@ -8,9 +8,9 @@ from typing import Any
 from isotope_core import Agent
 from isotope_core.providers.base import Provider
 from isotope_core.tools import Tool
-from isotope_core.types import AgentEvent, UserMessage
+from isotope_core.types import UserMessage
 
-from isotope_agents.presets import CODING, Preset, get_preset
+from isotope_agents.presets import Preset, get_preset
 
 
 class IsotopeAgent:
