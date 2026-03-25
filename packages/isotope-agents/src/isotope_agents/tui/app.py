@@ -38,6 +38,7 @@ BETWEEN_MESSAGE_COMMANDS = (
     "/system <text>  Change system prompt",
     "/clear          Clear conversation",
     "/history        Show usage stats",
+    "/sessions       List sessions",
     "/debug          Toggle debug mode",
     "/help           Show available commands",
     "/quit           Exit",
@@ -95,6 +96,7 @@ class TUI:
         self._stream_task: asyncio.Task[None] | None = None
         self._steer_text: str | None = None  # set by input reader on steer
         self._input_handler = StreamInputHandler()
+        self.resume_session_id: str | None = None  # session to resume
 
     @staticmethod
     def _print_command_group(title: str, commands: tuple[str, ...]) -> None:
@@ -114,7 +116,7 @@ class TUI:
     def _print_known_commands() -> None:
         """Print the short known-command summary."""
         _print(
-            "Commands: /tools /model /system /clear /history /debug /help /quit",
+            "Commands: /tools /model /system /clear /history /sessions /debug /help /quit",
             style="dim",
         )
 
@@ -316,8 +318,12 @@ class TUI:
         if self._stream_task is not None and not self._stream_task.done():
             self._stream_task.cancel()
 
-    def _create_agent(self) -> IsotopeAgent:
-        """Create a new agent with current settings."""
+    def _create_agent(self, session_id: str | None = None) -> IsotopeAgent:
+        """Create a new agent with current settings.
+
+        Args:
+            session_id: Optional session ID to resume.
+        """
         provider = ProxyProvider(
             model=self.model,
             base_url=PROXY_BASE_URL,
@@ -327,19 +333,36 @@ class TUI:
         # Use minimal preset when tools are disabled, otherwise use the current preset
         preset = "minimal" if not self.tools_enabled else self.preset
 
-        return IsotopeAgent(
+        agent = IsotopeAgent(
             provider=provider,
             preset=preset,
             model=self.model,
             system_prompt=self.custom_system_prompt,
             workspace=WORKSPACE,
             session_store=self.session_store,
+            session_id=session_id,
         )
+
+        # If resuming a session, load the history
+        if session_id:
+            try:
+                entries = self.session_store.load(session_id)
+                messages = self.session_store.entries_to_messages(entries)
+                if messages:
+                    agent.core.replace_messages(messages)
+                    _print(f"Resumed session {session_id} with {len(messages)} messages", style="info")
+            except FileNotFoundError:
+                _print(f"Warning: Session {session_id} not found, starting fresh", style="warn")
+            except Exception as e:
+                _print(f"Warning: Failed to resume session {session_id}: {e}", style="warn")
+
+        return agent
 
     def _rebuild_agent(self, *, keep_history: bool = True) -> None:
         """Rebuild the agent (e.g. after model / tool change)."""
         old_messages = self.agent.core.messages[:] if self.agent and keep_history else []
-        self.agent = self._create_agent()
+        old_session_id = self.agent.session_id if self.agent and keep_history else None
+        self.agent = self._create_agent(old_session_id)
         if old_messages:
             self.agent.core.replace_messages(old_messages)
 
@@ -441,6 +464,31 @@ class TUI:
             )
             return False
 
+        if cmd == "/sessions":
+            try:
+                sessions = self.session_store.list_sessions()
+                if not sessions:
+                    _print("No sessions found.", style="info")
+                    return False
+
+                # Limit to 10 sessions for inline display
+                sessions = sessions[:10]
+
+                _print("Recent sessions:", style="info")
+                _print(f"{'ID':<8} {'Started':<19} {'Messages':<8} {'Last message'}", style="dim")
+                _print("-" * 80, style="dim")
+
+                for session in sessions:
+                    # Format timestamp to remove timezone and seconds
+                    started_str = session.started_at[:19].replace('T', ' ')
+                    last_msg_preview = session.last_message_preview[:40] + ("..." if len(session.last_message_preview) > 40 else "")
+
+                    _print(f"{session.id:<8} {started_str:<19} {session.message_count:<8} {last_msg_preview}", style="dim")
+
+            except Exception as e:
+                _print(f"Error listing sessions: {e}", style="warn")
+            return False
+
         if cmd == "/debug":
             self.debug = not self.debug
             _print(f"Debug mode: {'on' if self.debug else 'off'}", style="info")
@@ -471,7 +519,8 @@ class TUI:
         context of what it already said.
         """
         if self.agent is None:
-            self._rebuild_agent()
+            session_id = self.resume_session_id if hasattr(self, 'resume_session_id') else None
+            self.agent = self._create_agent(session_id)
         assert self.agent is not None
 
         current_text = text
@@ -560,8 +609,11 @@ class TUI:
         else:
             _print(f"Using {self.preset.name} preset system prompt", style="dim")
 
-        # Create agent
-        self.agent = self._create_agent()
+        # Create agent (with session resuming if requested)
+        if self.resume_session_id:
+            self.agent = self._create_agent(self.resume_session_id)
+        else:
+            self.agent = self._create_agent()
 
         # Display session ID if available
         if self.agent.session_id:
