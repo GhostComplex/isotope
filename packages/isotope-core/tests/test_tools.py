@@ -12,6 +12,7 @@ from isotope_core.tools import (
     ToolNotFoundError,
     ToolResult,
     ToolValidationError,
+    auto_tool,
     tool,
     validate_json_schema,
 )
@@ -338,3 +339,175 @@ class TestToolErrors:
 
         with pytest.raises(ValueError):
             await failing_tool.execute("call_1", {})
+
+
+class TestAutoToolDecorator:
+    """Tests for the @auto_tool decorator."""
+
+    def test_bare_decorator(self) -> None:
+        """Test @auto_tool without arguments."""
+
+        @auto_tool
+        async def greet(name: str) -> str:
+            """Say hello to someone.
+
+            Args:
+                name: The person's name.
+            """
+            return f"Hello, {name}!"
+
+        assert isinstance(greet, Tool)
+        assert greet.name == "greet"
+        assert greet.description == "Say hello to someone."
+        assert greet.parameters["properties"]["name"]["type"] == "string"
+        assert greet.parameters["properties"]["name"]["description"] == "The person's name."
+        assert greet.parameters["required"] == ["name"]
+
+    def test_decorator_with_name_override(self) -> None:
+        """Test @auto_tool(name=..., description=...)."""
+
+        @auto_tool(name="search", description="Search for files")
+        async def grep(pattern: str) -> str:
+            """Original description."""
+            return pattern
+
+        assert grep.name == "search"
+        assert grep.description == "Search for files"
+
+    def test_type_mapping(self) -> None:
+        """Test Python type to JSON schema mapping."""
+
+        @auto_tool
+        async def multi_type(
+            text: str,
+            count: int,
+            ratio: float,
+            verbose: bool,
+        ) -> str:
+            """Test tool with multiple types.
+
+            Args:
+                text: A string.
+                count: An integer.
+                ratio: A float.
+                verbose: A boolean.
+            """
+            return "ok"
+
+        props = multi_type.parameters["properties"]
+        assert props["text"]["type"] == "string"
+        assert props["count"]["type"] == "integer"
+        assert props["ratio"]["type"] == "number"
+        assert props["verbose"]["type"] == "boolean"
+        assert multi_type.parameters["required"] == ["text", "count", "ratio", "verbose"]
+
+    def test_optional_parameter(self) -> None:
+        """Test that X | None parameters are not required."""
+
+        @auto_tool
+        async def search(pattern: str, path: str = ".", include: str | None = None) -> str:
+            """Search for a pattern.
+
+            Args:
+                pattern: Regex pattern.
+                path: Search directory.
+                include: Glob filter.
+            """
+            return "results"
+
+        assert search.parameters["required"] == ["pattern"]
+        assert "path" not in search.parameters["required"]
+        assert "include" not in search.parameters["required"]
+        # path has a default
+        assert search.parameters["properties"]["path"]["default"] == "."
+
+    def test_list_parameter(self) -> None:
+        """Test list[T] parameter mapping."""
+
+        @auto_tool
+        async def multi(items: list[str]) -> str:
+            """Process items.
+
+            Args:
+                items: List of items.
+            """
+            return str(items)
+
+        prop = multi.parameters["properties"]["items"]
+        assert prop["type"] == "array"
+        assert prop["items"]["type"] == "string"
+
+    @pytest.mark.asyncio
+    async def test_execute_returns_string(self) -> None:
+        """Test that returning str is auto-wrapped in ToolResult."""
+
+        @auto_tool
+        async def echo(message: str) -> str:
+            """Echo a message.
+
+            Args:
+                message: The message.
+            """
+            return f"Echo: {message}"
+
+        result = await echo.execute("call_1", {"message": "hello"})
+        assert result.is_error is False
+        assert result.content[0].text == "Echo: hello"
+
+    @pytest.mark.asyncio
+    async def test_execute_returns_tool_result(self) -> None:
+        """Test that returning ToolResult passes through."""
+
+        @auto_tool
+        async def failing(message: str) -> ToolResult:
+            """A tool that fails.
+
+            Args:
+                message: Error message.
+            """
+            return ToolResult.error(message)
+
+        result = await failing.execute("call_1", {"message": "broken"})
+        assert result.is_error is True
+        assert result.content[0].text == "broken"
+
+    @pytest.mark.asyncio
+    async def test_validation_still_works(self) -> None:
+        """Test that schema validation is enforced."""
+
+        @auto_tool
+        async def strict(count: int) -> str:
+            """Needs an integer.
+
+            Args:
+                count: A count.
+            """
+            return str(count)
+
+        with pytest.raises(ToolValidationError):
+            await strict.execute("call_1", {})  # missing required
+
+    def test_no_docstring(self) -> None:
+        """Test tool with no docstring uses fallback description."""
+
+        @auto_tool
+        async def mystery(x: str) -> str:
+            return x
+
+        assert mystery.name == "mystery"
+        assert mystery.description == "Tool: mystery"
+
+    def test_docstring_multiline_description(self) -> None:
+        """Test that multi-line description before Args is joined."""
+
+        @auto_tool
+        async def complex_tool(x: str) -> str:
+            """This is a tool with a
+            multi-line description.
+
+            Args:
+                x: Input value.
+            """
+            return x
+
+        assert "multi-line description" in complex_tool.description
