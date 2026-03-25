@@ -14,7 +14,7 @@ Two Python packages:
 | `isotope-agents` | Coding agent, tools, TUI, sessions, RPC, extensions | `pi-coding-agent` |
 
 `isotope-core` already exists (5.3k LoC, 97% test coverage, async, Pydantic v2).
-`isotope-agents` is the product to build.
+`isotope-agents` builds on top — and starts with existing TUI code from isotope-core.
 
 ---
 
@@ -30,14 +30,33 @@ We take pi-mono's **architecture** (it's good), not its code.
 
 ---
 
-## 3. Architecture
+## 3. Starting Point
+
+isotope-core already has a working TUI (`tui/main.py`, ~1060 LoC) with:
+
+- ✅ Claude Code-style steering (type during streaming to redirect)
+- ✅ prompt-toolkit integration (visible input prompt during streaming)
+- ✅ Streaming event consumption with tool call display
+- ✅ Slash commands (/tools, /model, /system, /clear, /history, /debug)
+- ✅ Built-in tools: read_file, write_file, edit_file, terminal, get_current_time
+- ✅ Follow-up queuing (/follow) and abort (/abort)
+
+**Strategy:** Lift this code into isotope-agents, modularize, then extend.
+
+---
+
+## 4. Architecture
 
 ```
 isotope-agents (the product)
-├── Agent         — coding agent with tool calling
-├── Tools         — bash, read, write, edit, grep, glob, web search, web fetch
-├── TUI           — interactive terminal UI (prompt-toolkit + rich)
-├── Sessions      — session management, history, compaction
+├── Agent         — coding agent wrapping isotope-core loop
+├── Tools         — modularized from existing TUI + new tools
+│   ├── Existing  — bash (terminal), read_file, write_file, edit_file
+│   └── New       — grep, glob/ls, web_search, web_fetch
+├── TUI           — lifted from isotope-core tui/main.py
+│   ├── Existing  — streaming, steering, slash commands, prompt-toolkit
+│   └── New       — markdown rendering (rich), session switching
+├── Sessions      — session persistence, history, compaction
 ├── RPC           — stdin/stdout JSON protocol for embedding
 └── Extensions    — plugin system for custom tools/behaviors
 
@@ -45,7 +64,7 @@ isotope-agents (the product)
          │ depends on
          ▼
 
-isotope-core (exists)
+isotope-core (exists, separate repo)
 ├── Agent loop    — plan → act → observe → repeat
 ├── Providers     — OpenAI, Anthropic, proxy, router
 ├── Middleware    — composable request/response transforms
@@ -71,40 +90,48 @@ isotope rpc
 
 ---
 
-## 4. Package: isotope-agents
+## 5. Package: isotope-agents
 
-### 4.1 Tools
+### 5.1 Tools
 
-| Tool | Description | Reference |
+| Tool | Source | Status |
 |---|---|---|
-| `BashTool` | Execute shell commands | pi: `bash.ts` |
-| `ReadTool` | Read file contents | pi: `read.ts` |
-| `WriteTool` | Write/create files | pi: `write.ts` |
-| `EditTool` | Search & replace editing | pi: `edit.ts` |
-| `GrepTool` | Search file contents (ripgrep) | pi: `grep.ts` |
-| `GlobTool` / `LsTool` | List files, glob patterns | pi: `ls.ts`, `find.ts` |
-| `WebSearchTool` | Web search | — |
-| `WebFetchTool` | Fetch URL content | — |
+| `BashTool` | Existing `terminal` tool from TUI | ✅ Lift & rename |
+| `ReadTool` | Existing `read_file` from TUI | ✅ Lift |
+| `WriteTool` | Existing `write_file` from TUI | ✅ Lift |
+| `EditTool` | Existing `edit_file` from TUI | ✅ Lift |
+| `GrepTool` | New (ripgrep-backed) | 🆕 Build |
+| `GlobTool` / `LsTool` | New (glob patterns, directory listing) | 🆕 Build |
+| `WebSearchTool` | New (Brave/SerpAPI) | 🆕 Build |
+| `WebFetchTool` | New (URL content extraction) | 🆕 Build |
 
-### 4.2 TUI
+### 5.2 TUI
 
-Interactive terminal interface using `prompt-toolkit` + `rich`:
+Existing features (from isotope-core `tui/main.py`):
 
-- Streaming response display with markdown rendering
-- Multi-line input with history
-- Tool call visualization (expandable)
-- Session switching
-- Keybindings (Ctrl+C cancel, Ctrl+D exit, etc.)
-- Syntax highlighting for code blocks
+- ✅ Streaming response with event consumption
+- ✅ Claude Code-style steering (interrupt + redirect)
+- ✅ prompt-toolkit input during streaming
+- ✅ Follow-up queuing and abort
+- ✅ Slash commands (/tools, /model, /system, /clear, /history, /debug)
+- ✅ Tool call display (`[calling tool_name]`)
+- ✅ Token usage display
 
-### 4.3 Sessions
+New features to add:
+
+- 🆕 Markdown rendering (rich)
+- 🆕 Syntax highlighting for code blocks
+- 🆕 Session switching (/session, /sessions)
+- 🆕 Config file loading (`~/.isotope/config.yaml`)
+
+### 5.3 Sessions
 
 - Session persistence (save/resume conversations)
 - History compaction (LLM-based summarization when context overflows)
 - Session listing and management
 - Auto-save on exit
 
-### 4.4 RPC Mode
+### 5.4 RPC Mode
 
 Stdin/stdout JSON protocol for embedding in other applications:
 
@@ -125,7 +152,7 @@ This enables:
 - Web UI backend
 - Any app that wants to embed an agent
 
-### 4.5 Extensions
+### 5.5 Extensions
 
 Plugin system for extending the agent:
 
@@ -136,33 +163,36 @@ Plugin system for extending the agent:
 
 ---
 
-## 5. Project Structure
+## 6. Project Structure
 
 ```
-isotope/                          # monorepo
-├── packages/
-│   └── agents/
-│       └── src/isotope_agents/
-│           ├── agent.py          # Main agent class
-│           ├── session.py        # Session management
-│           ├── compaction.py     # Context compaction
-│           ├── extensions.py     # Extension/plugin system
-│           ├── rpc.py            # RPC stdin/stdout mode
-│           ├── cli.py            # CLI entry point
-│           ├── tui/
-│           │   ├── app.py        # TUI application
-│           │   ├── input.py      # Input handling
-│           │   └── output.py     # Output rendering
-│           └── tools/
-│               ├── bash.py
-│               ├── read.py
-│               ├── write.py
-│               ├── edit.py
-│               ├── grep.py
-│               ├── glob.py
-│               ├── web_search.py
-│               └── web_fetch.py
-├── pyproject.toml                # Workspace config
+isotope/                          # this repo
+├── src/isotope_agents/
+│   ├── __init__.py
+│   ├── agent.py                  # Agent class wrapping isotope-core
+│   ├── session.py                # Session management
+│   ├── compaction.py             # Context compaction
+│   ├── extensions.py             # Extension/plugin system
+│   ├── config.py                 # Config file loading
+│   ├── rpc.py                    # RPC stdin/stdout mode
+│   ├── cli.py                    # CLI entry point
+│   ├── tui/
+│   │   ├── app.py                # Main TUI (lifted from isotope-core)
+│   │   ├── input.py              # Input handling (prompt-toolkit)
+│   │   ├── output.py             # Output rendering (rich)
+│   │   └── commands.py           # Slash command handlers
+│   └── tools/
+│       ├── __init__.py           # Tool registry
+│       ├── bash.py               # ✅ from existing terminal tool
+│       ├── read.py               # ✅ from existing read_file
+│       ├── write.py              # ✅ from existing write_file
+│       ├── edit.py               # ✅ from existing edit_file
+│       ├── grep.py               # 🆕
+│       ├── glob.py               # 🆕
+│       ├── web_search.py         # 🆕
+│       └── web_fetch.py          # 🆕
+├── tests/
+├── pyproject.toml
 └── README.md
 ```
 
@@ -170,12 +200,12 @@ isotope/                          # monorepo
 
 ---
 
-## 6. Dependencies
+## 7. Dependencies
 
 ```toml
 [project]
 dependencies = [
-    "isotope-core>=0.1.0",         # Our agent engine
+    "isotope-core>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -193,51 +223,51 @@ isotope = "isotope_agents.cli:main"
 
 ---
 
-## 7. Milestones
+## 8. Milestones
 
-### M1: Agent + Tools (Week 1)
+### M1: Lift + Modularize + Ship (Week 1)
 
-**Goal:** Working coding agent with core tools. Ship to PyPI.
+**Goal:** Extract existing code from isotope-core, modularize, add missing tools, ship to PyPI.
 
-- [ ] Agent class wrapping isotope-core loop
-- [ ] BashTool, ReadTool, WriteTool, EditTool
-- [ ] GrepTool, GlobTool
-- [ ] Tool output truncation (large outputs)
+- [ ] Lift TUI code from `isotope-core/tui/main.py` into `isotope_agents/tui/`
+- [ ] Extract inline tools into separate files (`tools/bash.py`, `tools/read.py`, etc.)
+- [ ] Add GrepTool (ripgrep-backed)
+- [ ] Add GlobTool / LsTool
+- [ ] Agent class wrapping isotope-core loop with proper tool registration
 - [ ] System prompt with tool instructions
-- [ ] Basic CLI: `isotope run "prompt"` (print mode, non-interactive)
+- [ ] CLI entry point: `isotope run "prompt"` (print mode) + `isotope chat` (TUI)
 - [ ] Tests
 - [ ] PyPI release: `pip install isotope-agents`
 
-**Ship:** `pip install isotope-agents` → `isotope run --print "list all Python files and count lines"` works.
+**Ship:** `pip install isotope-agents[tui]` → `isotope chat` works with all existing TUI features + grep/glob tools.
 
 ---
 
-### M2: TUI + Sessions (Week 2)
+### M2: Sessions + Rich Output (Week 2)
 
-**Goal:** Interactive terminal experience with session persistence. Ship update to PyPI.
+**Goal:** Session persistence and improved output rendering. Ship update.
 
-- [ ] Interactive TUI with streaming display
-- [ ] Multi-line input, history, keybindings
-- [ ] Markdown rendering in terminal
-- [ ] Tool call display (show what tools are doing)
-- [ ] Session save/resume
+- [ ] Session save/resume (JSON files in `~/.isotope/sessions/`)
 - [ ] Session listing (`isotope sessions`)
-- [ ] `isotope chat` command
+- [ ] Session switching (/session command)
+- [ ] Auto-save on exit
+- [ ] Markdown rendering with rich
+- [ ] Syntax highlighting for code blocks
+- [ ] Configuration file (`~/.isotope/config.yaml`)
 
-**Ship:** `pip install --upgrade isotope-agents` → `isotope chat` works with multi-turn, sessions persist.
+**Ship:** Multi-turn sessions persist across restarts. Output is properly formatted.
 
 ---
 
 ### M3: Compaction + Web Tools (Week 3)
 
-**Goal:** Handle long sessions and add web capabilities. Ship update to PyPI.
+**Goal:** Handle long sessions and add web capabilities. Ship update.
 
 - [ ] Context compaction (LLM-based summarization on overflow)
 - [ ] WebSearchTool (Brave/SerpAPI)
 - [ ] WebFetchTool (URL content extraction)
 - [ ] Improved system prompt engineering
 - [ ] Error handling and recovery (tool failures, API errors)
-- [ ] Configuration file (`~/.isotope/config.yaml`)
 
 **Ship:** Long coding sessions don't overflow. Web search and fetch work.
 
@@ -245,7 +275,7 @@ isotope = "isotope_agents.cli:main"
 
 ### M4: RPC + Extensions (Week 4)
 
-**Goal:** Embeddable agent with plugin system. Ship update to PyPI.
+**Goal:** Embeddable agent with plugin system. Ship update.
 
 - [ ] RPC mode (stdin/stdout JSON protocol)
 - [ ] Extension system (custom tools, hooks)
@@ -257,7 +287,7 @@ isotope = "isotope_agents.cli:main"
 
 ---
 
-## 8. Future (Post-v1)
+## 9. Future (Post-v1)
 
 Things we're **not building now** but may add later:
 
@@ -272,5 +302,3 @@ Things we're **not building now** but may add later:
 - Local models (MLX)
 
 These are logged in the backlog repo for when the time comes.
-
----
