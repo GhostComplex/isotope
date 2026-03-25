@@ -2,7 +2,7 @@
 
 **A pluggable Python agent framework — configure it as a coding agent, personal assistant, or anything in between.**
 
-> **Design principle: 克制 (restrained) but extensible.** Ship the minimal useful surface. Make everything hookable. Don't build what users haven't asked for — but never paint yourself into a corner.
+> **Design principle: Restrained but extensible.** Ship the minimal useful surface. Make everything hookable. Don't build what users haven't asked for — but never paint yourself into a corner.
 
 ---
 
