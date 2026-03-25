@@ -274,6 +274,15 @@ class FollowUpEvent(BaseModel):
     turn_number: int
 
 
+class LoopDetectedEvent(BaseModel):
+    """Emitted when loop detection triggers."""
+
+    type: Literal["loop_detected"] = "loop_detected"
+    tool_name: str
+    count: int
+    message: str
+
+
 # Union of all event types (discriminated by type field)
 AgentEvent = (
     AgentStartEvent
@@ -289,4 +298,5 @@ AgentEvent = (
     | ContextPrunedEvent
     | SteerEvent
     | FollowUpEvent
+    | LoopDetectedEvent
 )

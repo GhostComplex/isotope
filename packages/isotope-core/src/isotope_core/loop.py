@@ -7,6 +7,8 @@ with tool execution.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
@@ -27,6 +29,7 @@ from isotope_core.types import (
     Context,
     FollowUpEvent,
     ImageContent,
+    LoopDetectedEvent,
     Message,
     MessageEndEvent,
     MessageStartEvent,
@@ -41,11 +44,21 @@ from isotope_core.types import (
     ToolUpdateEvent,
     TurnEndEvent,
     TurnStartEvent,
+    UserMessage,
 )
 
 # =============================================================================
 # Configuration Types
 # =============================================================================
+
+
+@dataclass
+class LoopDetectionConfig:
+    """Configuration for loop detection in the agent loop."""
+
+    same_call_threshold: int = 3      # same tool + same args repeated N times → inject steering
+    same_tool_threshold: int = 5      # same tool (any args) repeated N times → emit warning event
+    enabled: bool = True
 
 
 @dataclass
@@ -120,6 +133,7 @@ class AgentLoopConfig:
     max_total_tokens: int | None = None
     middleware: list[Any] | None = None  # list[Middleware]
     lifecycle_hooks: LifecycleHooks | None = None
+    loop_detection: LoopDetectionConfig = field(default_factory=LoopDetectionConfig)
 
 
 # =============================================================================
@@ -138,6 +152,52 @@ def _find_tool(tools: list[Tool], name: str) -> Tool | None:
         if tool.name == name:
             return tool
     return None
+
+
+def _hash_tool_call(tool_name: str, args: dict[str, Any]) -> str:
+    """Create a hash of tool name and arguments for loop detection."""
+    # Sort args to ensure consistent hashing regardless of key order
+    args_str = json.dumps(args, sort_keys=True, default=str)
+    combined = f"{tool_name}:{args_str}"
+    return hashlib.md5(combined.encode()).hexdigest()
+
+
+def _check_loop_detection(
+    tool_calls_history: list[tuple[str, str]],  # (tool_name, call_hash)
+    config: LoopDetectionConfig,
+) -> tuple[bool, str | None, bool]:
+    """Check for loops in tool call history.
+
+    Returns:
+        (should_inject_steering, steering_message, should_emit_event)
+    """
+    if not config.enabled or len(tool_calls_history) < 2:
+        return False, None, False
+
+    # Get recent calls for same call detection
+    recent_calls = tool_calls_history[-config.same_call_threshold:]
+    if len(recent_calls) >= config.same_call_threshold:
+        # Check if all recent calls are identical (same tool + same args)
+        first_call = recent_calls[0]
+        if all(call == first_call for call in recent_calls):
+            tool_name = first_call[0]
+            steering_msg = (
+                f"You appear to be repeating the same action with the same arguments "
+                f"({tool_name}). Try a different approach or explain what's blocking you."
+            )
+            return True, steering_msg, False
+
+    # Check for same tool (different args) pattern
+    if len(tool_calls_history) >= config.same_tool_threshold:
+        recent_tool_calls = tool_calls_history[-config.same_tool_threshold:]
+        tool_names = [call[0] for call in recent_tool_calls]
+
+        # Check if same tool was used repeatedly
+        first_tool = tool_names[0]
+        if all(tool == first_tool for tool in tool_names):
+            return False, None, True
+
+    return False, None, False
 
 
 # =============================================================================
@@ -183,6 +243,9 @@ async def agent_loop(
     # Budget tracking
     turn_number = 0
     cumulative_tokens = 0
+
+    # Loop detection tracking
+    tool_calls_history: list[tuple[str, str]] = []  # (tool_name, call_hash)
 
     # Middleware chain setup (built once per loop run)
     mw_list: list[Any] = config.middleware or []
@@ -515,6 +578,40 @@ async def agent_loop(
                 me_evt = await _emit(MessageEndEvent(message=result_msg))
                 if me_evt is not None:
                     yield me_evt
+
+            # Loop detection: track tool calls and check for loops
+            for tool_call in tool_calls:
+                call_hash = _hash_tool_call(tool_call.name, tool_call.arguments)
+                tool_calls_history.append((tool_call.name, call_hash))
+
+            # Check for loop patterns
+            should_inject_steering, steering_message, should_emit_event = _check_loop_detection(
+                tool_calls_history, config.loop_detection
+            )
+
+            # Inject steering message if loop detected
+            if should_inject_steering and steering_message and config.steering_queue is not None:
+                steer_msg = UserMessage(
+                    content=[TextContent(text=steering_message)],
+                    timestamp=int(time.time() * 1000),
+                )
+                config.steering_queue.put_nowait(steer_msg)
+
+            # Emit loop detected event if same tool threshold reached
+            if should_emit_event and tool_calls_history:
+                last_tool_name = tool_calls_history[-1][0]
+                recent_calls = tool_calls_history[-config.loop_detection.same_tool_threshold:]
+                tool_count = sum(1 for tool_name, _ in recent_calls if tool_name == last_tool_name)
+                message = (
+                    f"Tool '{last_tool_name}' has been called {tool_count} times consecutively"
+                )
+                loop_evt = await _emit(LoopDetectedEvent(
+                    tool_name=last_tool_name,
+                    count=tool_count,
+                    message=message
+                ))
+                if loop_evt is not None:
+                    yield loop_evt
 
         # Emit turn_end
         te_evt = await _emit(TurnEndEvent(message=assistant_message, tool_results=tool_results))

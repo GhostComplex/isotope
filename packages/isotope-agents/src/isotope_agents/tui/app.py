@@ -16,14 +16,15 @@ from collections.abc import AsyncGenerator
 # Bypass system HTTP proxies (e.g. Clash) for localhost
 os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1,::1")
 
-from isotope_core import Agent
 from isotope_core.providers.proxy import ProxyProvider
 from isotope_core.types import AgentEvent, AssistantMessage
 
+from isotope_agents.agent import IsotopeAgent
 from isotope_agents.presets import CODING
+from isotope_agents.session import SessionStore
 
 from .input import StreamInputHandler
-from .render import _print, _print_inline, _StreamBuffer
+from .render import _print, _print_inline, _StreamBuffer, render_markdown, render_tool_output
 
 PROXY_BASE_URL = "http://localhost:4141/v1"
 DEFAULT_MODEL = "claude-opus-4.6"
@@ -37,6 +38,7 @@ BETWEEN_MESSAGE_COMMANDS = (
     "/system <text>  Change system prompt",
     "/clear          Clear conversation",
     "/history        Show usage stats",
+    "/sessions       List sessions",
     "/debug          Toggle debug mode",
     "/help           Show available commands",
     "/quit           Exit",
@@ -86,13 +88,15 @@ class TUI:
         self.custom_system_prompt: str | None = None
         self.tools_enabled = True
         self.debug = False
-        self.agent: Agent | None = None
+        self.agent: IsotopeAgent | None = None
+        self.session_store = SessionStore()
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self._is_streaming = False
         self._stream_task: asyncio.Task[None] | None = None
         self._steer_text: str | None = None  # set by input reader on steer
         self._input_handler = StreamInputHandler()
+        self.resume_session_id: str | None = None  # session to resume
 
     @staticmethod
     def _print_command_group(title: str, commands: tuple[str, ...]) -> None:
@@ -112,7 +116,7 @@ class TUI:
     def _print_known_commands() -> None:
         """Print the short known-command summary."""
         _print(
-            "Commands: /tools /model /system /clear /history /debug /help /quit",
+            "Commands: /tools /model /system /clear /history /sessions /debug /help /quit",
             style="dim",
         )
 
@@ -181,13 +185,24 @@ class TUI:
                         _print(f"\n  [calling {tool_name}]", style="tool")
 
                 elif event.type == "tool_end":
+                    tool_name = getattr(event, "tool_name", "?")
+                    tool_output = getattr(event, "output", "")
                     is_error = getattr(event, "is_error", False)
-                    if is_error:
+
+                    if buf:
+                        buf.flush()
+
+                    # Use rich rendering for tool output
+                    render_tool_output(tool_name, tool_output, is_error)
+
+                elif event.type == "message_end":
+                    # Render the completed assistant message as markdown
+                    message = getattr(event, "message", None)
+                    if isinstance(message, AssistantMessage) and message.text:
                         if buf:
                             buf.flush()
-                            print("  [tool error]")
-                        else:
-                            _print("  [tool error]", style="err")
+                        # Clear any buffered content and render as markdown
+                        render_markdown(message.text)
 
                 elif event.type == "turn_end":
                     msg = getattr(event, "message", None)
@@ -257,7 +272,7 @@ class TUI:
 
         trailing_text = buf.drain() if buf else ""
 
-        partial_msg = self.agent.state.stream_message if self.agent is not None else None
+        partial_msg = self.agent.core.state.stream_message if self.agent is not None else None
 
         # Explicitly close the generator so _run_loop's finally block runs
         # synchronously, resetting agent.state.is_streaming to False.
@@ -292,16 +307,16 @@ class TUI:
         # Drain the steering queue — we handle steering at the TUI level
         # by calling prompt() directly, so stale queue entries would
         # cause a duplicate redirect on the next agent_loop run.
-        while not self.agent._steering_queue.empty():
+        while not self.agent.core._steering_queue.empty():
             try:
-                self.agent._steering_queue.get_nowait()
+                self.agent.core._steering_queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
 
         # Preserve the partial assistant response so the LLM knows what
         # it had already said before the user interrupted.
         if partial_msg is not None:
-            self.agent.append_message(partial_msg)
+            self.agent.core.append_message(partial_msg)
 
         return steer_text
 
@@ -314,35 +329,53 @@ class TUI:
         if self._stream_task is not None and not self._stream_task.done():
             self._stream_task.cancel()
 
-    def _create_agent(self) -> Agent:
-        """Create a new agent with current settings."""
+    def _create_agent(self, session_id: str | None = None) -> IsotopeAgent:
+        """Create a new agent with current settings.
+
+        Args:
+            session_id: Optional session ID to resume.
+        """
         provider = ProxyProvider(
             model=self.model,
             base_url=PROXY_BASE_URL,
             api_key="not-needed",
         )
 
-        # Use custom system prompt or preset system prompt
-        if self.custom_system_prompt:
-            system_prompt = self.custom_system_prompt
-        else:
-            system_prompt = self.preset.format_system_prompt(cwd=WORKSPACE)
+        # Use minimal preset when tools are disabled, otherwise use the current preset
+        preset = "minimal" if not self.tools_enabled else self.preset
 
-        # Get tools from preset or use built-in tools if tools are enabled
-        tools = list(self.preset.tools) if self.tools_enabled else []
-
-        return Agent(
+        agent = IsotopeAgent(
             provider=provider,
-            system_prompt=system_prompt,
-            tools=tools,
+            preset=preset,
+            model=self.model,
+            system_prompt=self.custom_system_prompt,
+            workspace=WORKSPACE,
+            session_store=self.session_store,
+            session_id=session_id,
         )
+
+        # If resuming a session, load the history
+        if session_id:
+            try:
+                entries = self.session_store.load(session_id)
+                messages = self.session_store.entries_to_messages(entries)
+                if messages:
+                    agent.core.replace_messages(messages)
+                    _print(f"Resumed session {session_id} with {len(messages)} messages", style="info")
+            except FileNotFoundError:
+                _print(f"Warning: Session {session_id} not found, starting fresh", style="warn")
+            except Exception as e:
+                _print(f"Warning: Failed to resume session {session_id}: {e}", style="warn")
+
+        return agent
 
     def _rebuild_agent(self, *, keep_history: bool = True) -> None:
         """Rebuild the agent (e.g. after model / tool change)."""
-        old_messages = self.agent.messages[:] if self.agent and keep_history else []
-        self.agent = self._create_agent()
+        old_messages = self.agent.core.messages[:] if self.agent and keep_history else []
+        old_session_id = self.agent.session_id if self.agent and keep_history else None
+        self.agent = self._create_agent(old_session_id)
         if old_messages:
-            self.agent.replace_messages(old_messages)
+            self.agent.core.replace_messages(old_messages)
 
     async def _select_model(self, models: list[str]) -> str:
         """Let the user pick a model or accept the default."""
@@ -426,17 +459,45 @@ class TUI:
             self.total_input_tokens = 0
             self.total_output_tokens = 0
             self._rebuild_agent(keep_history=False)
-            _print("Conversation cleared.", style="info")
+            if self.agent and self.agent.session_id:
+                _print(f"New session: {self.agent.session_id}", style="info")
+            else:
+                _print("Conversation cleared.", style="info")
             return False
 
         if cmd == "/history":
             if self.agent:
-                msg_count = len(self.agent.messages)
+                msg_count = len(self.agent.core.messages)
                 _print(f"Messages: {msg_count}", style="info")
             _print(
                 f"Total tokens: in={self.total_input_tokens}, out={self.total_output_tokens}",
                 style="info",
             )
+            return False
+
+        if cmd == "/sessions":
+            try:
+                sessions = self.session_store.list_sessions()
+                if not sessions:
+                    _print("No sessions found.", style="info")
+                    return False
+
+                # Limit to 10 sessions for inline display
+                sessions = sessions[:10]
+
+                _print("Recent sessions:", style="info")
+                _print(f"{'ID':<8} {'Started':<19} {'Messages':<8} {'Last message'}", style="dim")
+                _print("-" * 80, style="dim")
+
+                for session in sessions:
+                    # Format timestamp to remove timezone and seconds
+                    started_str = session.started_at[:19].replace('T', ' ')
+                    last_msg_preview = session.last_message_preview[:40] + ("..." if len(session.last_message_preview) > 40 else "")
+
+                    _print(f"{session.id:<8} {started_str:<19} {session.message_count:<8} {last_msg_preview}", style="dim")
+
+            except Exception as e:
+                _print(f"Error listing sessions: {e}", style="warn")
             return False
 
         if cmd == "/debug":
@@ -469,7 +530,8 @@ class TUI:
         context of what it already said.
         """
         if self.agent is None:
-            self._rebuild_agent()
+            session_id = self.resume_session_id if hasattr(self, 'resume_session_id') else None
+            self.agent = self._create_agent(session_id)
         assert self.agent is not None
 
         current_text = text
@@ -486,7 +548,7 @@ class TUI:
                 # Hold a reference to the generator for explicit lifecycle control.
                 # Just creating the generator doesn't execute code — it starts
                 # running only when _consume iterates it.
-                gen = self.agent.prompt(current_text)  # type: ignore[arg-type]
+                gen = self.agent.run(current_text)  # type: ignore[arg-type]
 
                 # When prompt_toolkit is active, use print() for output so that
                 # patch_stdout can route it above the input prompt (Rich Console
@@ -530,7 +592,7 @@ class TUI:
         print()
         # Show usage for last assistant message
         assistant_msgs = [
-            m for m in self.agent.messages if isinstance(m, AssistantMessage)
+            m for m in self.agent.core.messages if isinstance(m, AssistantMessage)
         ]
         if assistant_msgs:
             usage = assistant_msgs[-1].usage
@@ -558,8 +620,15 @@ class TUI:
         else:
             _print(f"Using {self.preset.name} preset system prompt", style="dim")
 
-        # Create agent
-        self.agent = self._create_agent()
+        # Create agent (with session resuming if requested)
+        if self.resume_session_id:
+            self.agent = self._create_agent(self.resume_session_id)
+        else:
+            self.agent = self._create_agent()
+
+        # Display session ID if available
+        if self.agent.session_id:
+            _print(f"Session: {self.agent.session_id}", style="info")
 
         _print("\nType your message (or /help for commands). Ctrl+C to quit.\n", style="dim")
 

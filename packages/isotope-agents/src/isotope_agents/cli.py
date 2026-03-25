@@ -17,6 +17,7 @@ from isotope_core.types import AgentEvent, AssistantMessage
 from isotope_agents import __version__
 from isotope_agents.agent import IsotopeAgent
 from isotope_agents.presets import get_preset
+from isotope_agents.session import SessionStore
 
 
 # Default configuration values
@@ -62,9 +63,13 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Chat command
-    subparsers.add_parser(
+    chat_parser = subparsers.add_parser(
         "chat",
         help="Launch interactive TUI mode",
+    )
+    chat_parser.add_argument(
+        "--session",
+        help="Resume an existing session by session ID",
     )
 
     # Run command
@@ -75,6 +80,18 @@ def create_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "prompt",
         help="The prompt to send to the agent",
+    )
+
+    # Sessions command
+    sessions_parser = subparsers.add_parser(
+        "sessions",
+        help="List and manage sessions",
+    )
+    sessions_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Maximum number of sessions to display (default: 10)",
     )
 
     return parser
@@ -173,13 +190,14 @@ def handle_agent_event(event: AgentEvent) -> None:
             )
 
 
-def launch_tui(model: str, preset: str, no_tools: bool) -> None:
+def launch_tui(model: str, preset: str, no_tools: bool, session_id: str | None = None) -> None:
     """Launch the TUI interface.
 
     Args:
         model: Model name to use.
         preset: Preset configuration name.
         no_tools: Whether to disable tools.
+        session_id: Optional session ID to resume.
     """
     try:
         # Import TUI here to avoid import errors if dependencies aren't installed
@@ -190,6 +208,10 @@ def launch_tui(model: str, preset: str, no_tools: bool) -> None:
         tui.model = model
         tui.preset = get_preset(preset)
         tui.tools_enabled = not no_tools
+
+        # Set session ID if provided
+        if session_id:
+            tui.resume_session_id = session_id
 
         # Run the TUI
         asyncio.run(tui.run())
@@ -209,6 +231,41 @@ def launch_tui(model: str, preset: str, no_tools: bool) -> None:
         sys.exit(1)
 
 
+def list_sessions(limit: int = 10) -> None:
+    """List sessions with formatted output.
+
+    Args:
+        limit: Maximum number of sessions to display.
+    """
+    session_store = SessionStore()
+
+    try:
+        sessions = session_store.list_sessions()
+
+        if not sessions:
+            print("No sessions found.")
+            return
+
+        # Limit the number of sessions
+        sessions = sessions[:limit]
+
+        # Print header
+        print(f"{'ID':<8} {'Started':<19} {'Messages':<8} {'Last message'}")
+        print("-" * 80)
+
+        # Print session rows
+        for session in sessions:
+            # Format timestamp to remove timezone and seconds
+            started_str = session.started_at[:19].replace('T', ' ')
+            last_msg_preview = session.last_message_preview[:40] + ("..." if len(session.last_message_preview) > 40 else "")
+
+            print(f"{session.id:<8} {started_str:<19} {session.message_count:<8} {last_msg_preview}")
+
+    except Exception as e:
+        print(f"Error listing sessions: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> NoReturn:
     """Main CLI entry point."""
     parser = create_parser()
@@ -220,7 +277,8 @@ def main() -> NoReturn:
         sys.exit(1)
 
     if args.command == "chat":
-        launch_tui(args.model, args.preset, args.no_tools)
+        session_id = getattr(args, 'session', None)
+        launch_tui(args.model, args.preset, args.no_tools, session_id)
 
     elif args.command == "run":
         try:
@@ -236,6 +294,10 @@ def main() -> NoReturn:
             sys.exit(1)
         except Exception:
             sys.exit(1)
+
+    elif args.command == "sessions":
+        list_sessions(args.limit)
+        sys.exit(0)
 
     else:
         parser.print_help()

@@ -8,6 +8,14 @@ from __future__ import annotations
 
 from typing import Any
 
+try:
+    from rich.console import Console
+    from rich.markdown import Markdown
+    from rich.panel import Panel
+    _RICH_AVAILABLE = True
+except ImportError:
+    _RICH_AVAILABLE = False
+
 
 # ---------------------------------------------------------------------------
 # Output helpers (plain stdout)
@@ -62,3 +70,47 @@ class _StreamBuffer:
     def discard(self) -> None:
         """Discard buffered text without printing (used on cancellation)."""
         self._pending = ""
+
+
+# ---------------------------------------------------------------------------
+# Rich markdown rendering (with fallback)
+# ---------------------------------------------------------------------------
+
+def render_markdown(text: str) -> None:
+    """Render text as markdown using Rich if available, otherwise plain text.
+
+    Args:
+        text: The markdown text to render.
+    """
+    if _RICH_AVAILABLE:
+        console = Console()
+        markdown = Markdown(text)
+        console.print(markdown)
+    else:
+        # Fallback to plain text
+        print(text)
+
+
+def render_tool_output(tool_name: str, output: str, is_error: bool = False) -> None:
+    """Render tool output in a panel using Rich if available.
+
+    Args:
+        tool_name: Name of the tool that produced the output.
+        output: The tool output text.
+        is_error: Whether this is error output.
+    """
+    if _RICH_AVAILABLE:
+        console = Console()
+        style = "red" if is_error else "blue"
+        title = f"[{style}]{tool_name}[/{style}]" + (" (error)" if is_error else "")
+        panel = Panel(output, title=title, border_style=style)
+        console.print(panel)
+    else:
+        # Fallback to plain text
+        error_marker = " (error)" if is_error else ""
+        print(f"\n[{tool_name}{error_marker}]")
+        if output.strip():
+            # Indent the output slightly for visual separation
+            for line in output.splitlines():
+                print(f"  {line}")
+        print()
