@@ -15,7 +15,13 @@ from isotope_core.types import AgentEvent, AssistantMessage
 from isotope_agents.agent import IsotopeAgent
 from isotope_agents.tui.commands import handle_command, handle_stream_input_line
 from isotope_agents.tui.input import HAS_PROMPT_TOOLKIT, InputHandler, patch_stdout
-from isotope_agents.tui.output import StreamBuffer, tui_print, tui_print_inline
+from isotope_agents.tui.output import (
+    HAS_RICH,
+    StreamBuffer,
+    render_markdown,
+    tui_print,
+    tui_print_inline,
+)
 
 
 class TUIApp:
@@ -41,6 +47,7 @@ class TUIApp:
         self._stream_task: asyncio.Task[None] | None = None
         self.steer_text: str | None = None
         self._input = InputHandler()
+        self._collected_text = ""  # Accumulate response text for markdown re-render
 
     def cancel_stream(self) -> None:
         """Cancel the active stream task immediately (Claude Code style)."""
@@ -57,6 +64,7 @@ class TUIApp:
         """Consume agent events for a single streamed response."""
         if prompt_toolkit:
             await asyncio.sleep(0)
+        self._collected_text = ""
         try:
             async for event in gen:
                 if self.debug:
@@ -69,6 +77,7 @@ class TUIApp:
                 if event.type == "message_update":
                     delta = getattr(event, "delta", None)
                     if delta:
+                        self._collected_text += delta
                         if buf:
                             buf.write(delta)
                         else:
@@ -262,8 +271,21 @@ class TUIApp:
 
                 break
 
-        # Print newline after streamed text + token usage
+        # Print newline after streamed text + re-render with markdown
         print()
+
+        # Re-render the full response as markdown if rich is available
+        # and the response contains markdown-like content
+        if HAS_RICH and self._collected_text.strip():
+            has_markdown = any(
+                marker in self._collected_text
+                for marker in ("```", "**", "# ", "- ", "| ", "> ")
+            )
+            if has_markdown:
+                tui_print("─" * 50, style="dim")
+                render_markdown(self._collected_text)
+
+        # Show usage for last assistant message
         assistant_msgs = [
             m for m in agent.messages if isinstance(m, AssistantMessage)
         ]

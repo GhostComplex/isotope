@@ -1,24 +1,55 @@
 """Output helpers for the isotope-agents TUI.
 
-Provides print utilities and a stream buffer for rendering output
-above the prompt-toolkit input prompt.
+Provides print utilities, a stream buffer for rendering output
+above the prompt-toolkit input prompt, and rich markdown rendering.
 """
 
 from __future__ import annotations
 
+import os
 from typing import Any
+
+# ---------------------------------------------------------------------------
+# Optional rich support
+# ---------------------------------------------------------------------------
+
+try:
+    from rich.console import Console as _Console
+    from rich.markdown import Markdown as _Markdown
+    from rich.theme import Theme as _Theme
+
+    _ISOTOPE_THEME = _Theme(
+        {
+            "info": "cyan",
+            "dim": "dim",
+            "warn": "yellow",
+            "err": "bold red",
+            "tool": "green",
+            "model": "white",
+            "user": "bold blue",
+        }
+    )
+
+    _console = _Console(theme=_ISOTOPE_THEME, highlight=False)
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
+    _console = None  # type: ignore[assignment]
 
 
 def tui_print(text: str, style: str | None = None, **kw: Any) -> None:
-    """Print text to stdout.
+    """Print text to stdout, optionally styled with rich.
 
     Args:
         text: Text to print.
-        style: Style hint (currently unused, reserved for rich rendering).
+        style: Style name from the isotope theme (info, dim, warn, err, tool, model, user).
         **kw: Additional kwargs passed to print() (e.g. end="").
     """
-    del style
-    print(text, end=kw.get("end", "\n"))
+    if HAS_RICH and _console is not None and style:
+        end = kw.get("end", "\n")
+        _console.print(text, style=style, end=end, highlight=False)
+    else:
+        print(text, end=kw.get("end", "\n"))
 
 
 def tui_print_inline(text: str, style: str | None = None) -> None:
@@ -26,10 +57,40 @@ def tui_print_inline(text: str, style: str | None = None) -> None:
 
     Args:
         text: Text to print.
-        style: Style hint (currently unused).
+        style: Style name from the isotope theme.
     """
-    del style
-    print(text, end="", flush=True)
+    if HAS_RICH and _console is not None and style:
+        _console.print(text, style=style, end="", highlight=False)
+    else:
+        print(text, end="", flush=True)
+
+
+def render_markdown(text: str) -> None:
+    """Render text as markdown using rich.
+
+    Falls back to plain text if rich is not installed.
+    Code blocks get syntax highlighting automatically via rich.
+
+    Args:
+        text: Markdown-formatted text to render.
+    """
+    if not text.strip():
+        return
+
+    if HAS_RICH and _console is not None:
+        width = get_terminal_width()
+        md = _Markdown(text)
+        _console.print(md, width=width)
+    else:
+        print(text)
+
+
+def get_terminal_width() -> int:
+    """Get terminal width, capped at 120 columns."""
+    try:
+        return min(os.get_terminal_size().columns, 120)
+    except OSError:
+        return 80
 
 
 class StreamBuffer:
