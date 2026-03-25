@@ -1,12 +1,13 @@
 """CLI entry point for isotope-agents.
 
-Provides the `isotope` command with `chat` and `run` subcommands.
+Provides the `isotope` command with `chat`, `run`, and `sessions` subcommands.
 """
 
 from __future__ import annotations
 
 import asyncio
 import sys
+from datetime import UTC, datetime
 
 import click
 
@@ -29,7 +30,13 @@ def main() -> None:
 )
 @click.option("--model", default=None, help="Model to use")
 @click.option("--base-url", default=None, help="Provider base URL")
-def chat(preset: str | None, model: str | None, base_url: str | None) -> None:
+@click.option("--session", "session_id", default=None, help="Resume a saved session by ID")
+def chat(
+    preset: str | None,
+    model: str | None,
+    base_url: str | None,
+    session_id: str | None,
+) -> None:
     """Start interactive TUI chat."""
     from isotope_agents.agent import IsotopeAgent
     from isotope_agents.tui.app import run_tui
@@ -44,7 +51,11 @@ def chat(preset: str | None, model: str | None, base_url: str | None) -> None:
     if base_url:
         config.provider.base_url = base_url
 
-    agent = IsotopeAgent(preset=config.preset, config=config)
+    agent = IsotopeAgent(
+        preset=config.preset,
+        config=config,
+        session_id=session_id,
+    )
 
     try:
         asyncio.run(run_tui(agent))
@@ -118,6 +129,38 @@ def run(
         asyncio.run(_run())
     except KeyboardInterrupt:
         sys.exit(130)
+
+
+@main.command()
+@click.option("--delete", "delete_id", default=None, help="Delete a session by ID")
+def sessions(delete_id: str | None) -> None:
+    """List or manage saved sessions."""
+    from isotope_agents.session import SessionStore
+
+    store = SessionStore()
+
+    if delete_id:
+        if store.delete(delete_id):
+            click.echo(f"Deleted session: {delete_id}")
+        else:
+            click.echo(f"Session not found: {delete_id}", err=True)
+            sys.exit(1)
+        return
+
+    listing = store.list()
+    if not listing:
+        click.echo("No saved sessions.")
+        return
+
+    # Print a formatted table
+    click.echo(f"{'ID':<40} {'Updated':<20} {'Msgs':>5}  {'Summary'}")
+    click.echo("─" * 90)
+    for meta in listing:
+        updated = datetime.fromtimestamp(meta.updated_at, tz=UTC).strftime(
+            "%Y-%m-%d %H:%M"
+        )
+        short_id = meta.id[:36]
+        click.echo(f"{short_id:<40} {updated:<20} {meta.message_count:>5}  {meta.summary}")
 
 
 if __name__ == "__main__":

@@ -284,6 +284,19 @@ class TUIApp:
             names = ", ".join(t.name for t in self.isotope_agent.tools)
             tui_print(f"Tools: {names}", style="dim")
 
+        # Initialize session if none exists (e.g. no --session flag)
+        if self.isotope_agent.session is None:
+            self.isotope_agent.new_session()
+
+        session = self.isotope_agent.session
+        if session is not None and session.message_count > 0:
+            tui_print(
+                f"Session: {session.id[:8]} ({session.message_count} messages)",
+                style="dim",
+            )
+        else:
+            tui_print("Session: new", style="dim")
+
         tui_print(
             "\nType your message (or /help for commands). Ctrl+C to quit.\n",
             style="dim",
@@ -293,6 +306,8 @@ class TUIApp:
             line = await self._input.read_idle_input()
             if line is None:
                 print()
+                # Auto-save on exit
+                self.isotope_agent.save_session()
                 tui_print("Bye!", style="info")
                 break
 
