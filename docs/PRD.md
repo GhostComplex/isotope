@@ -197,7 +197,7 @@ isotope = "isotope_agents.cli:main"
 
 ### M1: Agent + Tools (Week 1)
 
-**Goal:** Working coding agent with core tools, runnable from Python.
+**Goal:** Working coding agent with core tools. Ship to PyPI.
 
 - [ ] Agent class wrapping isotope-core loop
 - [ ] BashTool, ReadTool, WriteTool, EditTool
@@ -206,14 +206,15 @@ isotope = "isotope_agents.cli:main"
 - [ ] System prompt with tool instructions
 - [ ] Basic CLI: `isotope run "prompt"` (print mode, non-interactive)
 - [ ] Tests
+- [ ] PyPI release: `pip install isotope-agents`
 
-**Exit:** Can run `isotope run --print "list all Python files and count lines"` and get correct results.
+**Ship:** `pip install isotope-agents` → `isotope run --print "list all Python files and count lines"` works.
 
 ---
 
 ### M2: TUI + Sessions (Week 2)
 
-**Goal:** Interactive terminal experience with session persistence.
+**Goal:** Interactive terminal experience with session persistence. Ship update to PyPI.
 
 - [ ] Interactive TUI with streaming display
 - [ ] Multi-line input, history, keybindings
@@ -223,13 +224,13 @@ isotope = "isotope_agents.cli:main"
 - [ ] Session listing (`isotope sessions`)
 - [ ] `isotope chat` command
 
-**Exit:** Can `isotope chat`, have a multi-turn conversation, exit, and resume later.
+**Ship:** `pip install --upgrade isotope-agents` → `isotope chat` works with multi-turn, sessions persist.
 
 ---
 
 ### M3: Compaction + Web Tools (Week 3)
 
-**Goal:** Handle long sessions and add web capabilities.
+**Goal:** Handle long sessions and add web capabilities. Ship update to PyPI.
 
 - [ ] Context compaction (LLM-based summarization on overflow)
 - [ ] WebSearchTool (Brave/SerpAPI)
@@ -238,22 +239,21 @@ isotope = "isotope_agents.cli:main"
 - [ ] Error handling and recovery (tool failures, API errors)
 - [ ] Configuration file (`~/.isotope/config.yaml`)
 
-**Exit:** Can run long coding sessions without context overflow. Can search the web and fetch URLs.
+**Ship:** Long coding sessions don't overflow. Web search and fetch work.
 
 ---
 
 ### M4: RPC + Extensions (Week 4)
 
-**Goal:** Embeddable agent with plugin system.
+**Goal:** Embeddable agent with plugin system. Ship update to PyPI.
 
 - [ ] RPC mode (stdin/stdout JSON protocol)
 - [ ] Extension system (custom tools, hooks)
 - [ ] MCP client (load tools from MCP servers)
 - [ ] `isotope rpc` command
 - [ ] Documentation
-- [ ] PyPI release: `pip install isotope-agents`
 
-**Exit:** Another app can spawn `isotope rpc` and interact via JSON. MCP tools loadable. Published on PyPI.
+**Ship:** Other apps can spawn `isotope rpc` and interact via JSON. MCP tools loadable.
 
 ---
 
@@ -274,11 +274,3 @@ Things we're **not building now** but may add later:
 These are logged in the backlog repo for when the time comes.
 
 ---
-
-## 9. Non-Goals
-
-- CodeAgent (code execution in sandbox) — delegate to Claude Code / Gemini CLI
-- TypeScript rewrite — staying Python
-- Docker containerization of agents
-- Enterprise features
-- Agent marketplace
