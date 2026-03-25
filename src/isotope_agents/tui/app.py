@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import AsyncGenerator
-from typing import Any
 
 from isotopo_core.types import AgentEvent, AssistantMessage
 

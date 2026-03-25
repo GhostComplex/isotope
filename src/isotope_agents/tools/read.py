@@ -48,7 +48,10 @@ def make_read_tool() -> Tool:
 
     return Tool(
         name="read",
-        description="Read the contents of a file at the given path. Supports offset/limit for large files.",
+        description=(
+            "Read the contents of a file at the given path. "
+            "Supports offset/limit for large files."
+        ),
         parameters={
             "type": "object",
             "properties": {

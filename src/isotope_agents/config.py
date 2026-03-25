@@ -42,12 +42,13 @@ class IsotopeConfig:
         Returns:
             IsotopeConfig with values from file, falling back to defaults.
         """
-        if path is None:
-            path = Path(os.path.expanduser("~/.isotope/config.yaml"))
-        else:
-            path = Path(path)
+        resolved = (
+            Path(os.path.expanduser("~/.isotope/config.yaml"))
+            if path is None
+            else Path(path)
+        )
 
-        if not path.exists():
+        if not resolved.exists():
             return cls()
 
         try:
@@ -56,7 +57,7 @@ class IsotopeConfig:
             return cls()
 
         try:
-            with open(path, encoding="utf-8") as f:
+            with open(resolved, encoding="utf-8") as f:
                 data: dict[str, Any] = yaml.safe_load(f) or {}
         except Exception:
             return cls()

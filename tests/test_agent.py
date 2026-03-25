@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import os
 import tempfile
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 from isotope_agents.agent import IsotopeAgent
 from isotope_agents.config import IsotopeConfig, ProviderConfig
-from isotope_agents.presets import CODING_PRESET, MINIMAL_PRESET, Preset
+from isotope_agents.presets import CODING_PRESET
 
 
 class TestIsotopeAgent:

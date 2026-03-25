@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 import tempfile
 
@@ -15,7 +14,6 @@ from isotope_agents.tools.glob import make_glob_tool
 from isotope_agents.tools.grep import make_grep_tool
 from isotope_agents.tools.read import make_read_tool
 from isotope_agents.tools.write import make_write_tool
-
 
 # =========================================================================
 # Tool instantiation and schema tests
