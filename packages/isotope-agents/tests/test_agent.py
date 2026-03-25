@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -231,3 +231,172 @@ class TestIsotopeAgent:
             assert entries[0].type == "session_start"
             assert entries[1].type == "user_message"
             assert entries[2].type == "assistant_message"
+
+    def test_context_window_default(self) -> None:
+        """Default context window is 128000."""
+        agent = IsotopeAgent(provider=self._mock_provider())
+        assert agent.context_window == 128_000
+
+    def test_context_window_custom(self) -> None:
+        """Custom context window is respected."""
+        agent = IsotopeAgent(
+            provider=self._mock_provider(),
+            context_window=200_000,
+        )
+        assert agent.context_window == 200_000
+
+    def test_file_tracker_auto_created(self) -> None:
+        """FileTracker is automatically created if not provided."""
+        from isotope_core.context import FileTracker
+
+        agent = IsotopeAgent(provider=self._mock_provider())
+        assert isinstance(agent.file_tracker, FileTracker)
+
+    def test_file_tracker_custom(self) -> None:
+        """Custom FileTracker is used when provided."""
+        from isotope_core.context import FileTracker
+
+        tracker = FileTracker()
+        tracker.record_read("/test/file.py")
+
+        agent = IsotopeAgent(
+            provider=self._mock_provider(),
+            file_tracker=tracker,
+        )
+        assert agent.file_tracker is tracker
+        assert "/test/file.py" in agent.file_tracker.files_read
+
+    @pytest.mark.asyncio
+    async def test_auto_compaction_triggered_when_threshold_exceeded(self) -> None:
+        """Auto-compaction is triggered when token estimate exceeds 80% of context window."""
+        from isotope_core.types import (
+            AssistantMessage,
+            TextContent,
+            TurnEndEvent,
+            Usage,
+            UserMessage,
+        )
+        from isotope_agents.compaction import CompactionResult
+
+        provider = self._mock_provider()
+
+        # Use a small context window so we can easily exceed 80% threshold
+        small_context_window = 100  # 100 tokens
+
+        agent = IsotopeAgent(
+            provider=provider,
+            preset="minimal",
+            context_window=small_context_window,
+        )
+
+        # Pre-fill the agent's message history with enough text to exceed
+        # 80% of 100 tokens = 80 tokens threshold.
+        # Each char is ~0.25 tokens, so 400 chars ≈ 100 tokens.
+        big_text = "A" * 500  # ~125 tokens, well above 80 token threshold
+        existing_messages = [
+            UserMessage(
+                content=[TextContent(text=big_text)],
+                timestamp=1000,
+            ),
+            AssistantMessage(
+                content=[TextContent(text=big_text)],
+                usage=Usage(input_tokens=50, output_tokens=50),
+                timestamp=1001,
+            ),
+            UserMessage(
+                content=[TextContent(text="Another message")],
+                timestamp=1002,
+            ),
+            AssistantMessage(
+                content=[TextContent(text="Another response")],
+                usage=Usage(input_tokens=10, output_tokens=10),
+                timestamp=1003,
+            ),
+            UserMessage(
+                content=[TextContent(text="Third question")],
+                timestamp=1004,
+            ),
+            AssistantMessage(
+                content=[TextContent(text="Third response")],
+                usage=Usage(input_tokens=10, output_tokens=10),
+                timestamp=1005,
+            ),
+        ]
+        agent.core.replace_messages(existing_messages)
+
+        # Mock the agent's compact method to track if it was called
+        mock_compact_result = CompactionResult(
+            summary="Test summary",
+            files_read=[],
+            files_modified=[],
+            messages_compacted=2,
+            tokens_before=250,
+            tokens_after=50,
+        )
+
+        # Create a mock turn end event for the run
+        mock_message = AssistantMessage(
+            content=[TextContent(text="response")],
+            usage=Usage(input_tokens=10, output_tokens=5),
+            timestamp=2000,
+        )
+        mock_event = TurnEndEvent(
+            message=mock_message,
+            tool_results=[],
+        )
+
+        async def mock_run(*args, **kwargs):
+            yield mock_event
+
+        agent.core.run = mock_run
+
+        # Patch compact to track the call
+        with patch.object(agent, "compact", return_value=mock_compact_result) as mock_compact:
+            events = []
+            async for event in agent.run("test"):
+                events.append(event)
+
+            # compact() should have been called because we exceeded the threshold
+            mock_compact.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_auto_compaction_below_threshold(self) -> None:
+        """Auto-compaction is NOT triggered when under the threshold."""
+        from isotope_core.types import (
+            AssistantMessage,
+            TextContent,
+            TurnEndEvent,
+            Usage,
+        )
+
+        provider = self._mock_provider()
+
+        # Large context window — threshold won't be exceeded
+        agent = IsotopeAgent(
+            provider=provider,
+            preset="minimal",
+            context_window=1_000_000,
+        )
+
+        mock_message = AssistantMessage(
+            content=[TextContent(text="short reply")],
+            usage=Usage(input_tokens=10, output_tokens=5),
+            timestamp=2000,
+        )
+        mock_event = TurnEndEvent(
+            message=mock_message,
+            tool_results=[],
+        )
+
+        async def mock_run(*args, **kwargs):
+            yield mock_event
+
+        agent.core.run = mock_run
+
+        with patch.object(agent, "compact") as mock_compact:
+            events = []
+            async for event in agent.run("test"):
+                events.append(event)
+
+            # compact() should NOT have been called
+            mock_compact.assert_not_called()

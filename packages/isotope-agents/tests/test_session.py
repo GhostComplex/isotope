@@ -322,3 +322,66 @@ class TestSessionStore:
         assert len(restored.content) == 2
         assert restored.content[0].text == "First part"
         assert restored.content[1].text == "Second part"
+
+    def test_compaction_entry_round_trip(self, tmp_path: Path) -> None:
+        """Test compaction entry can be written, read, and converted to messages."""
+        store = SessionStore(sessions_dir=tmp_path)
+        session_id = store.create(model="test-model", preset="test-preset")
+
+        # Create a compaction entry
+        compaction_entry = SessionEntry(
+            type="compaction",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            data={
+                "summary": "User asked to write a hello world script. Assistant created hello.py.",
+                "files_read": ["hello.py", "README.md"],
+                "files_modified": ["hello.py"],
+                "messages_compacted": 8,
+                "tokens_before": 5000,
+                "tokens_after": 500,
+            },
+        )
+
+        # Append to session
+        store.append(session_id, compaction_entry)
+
+        # Load back
+        entries = store.load(session_id)
+        assert len(entries) == 2  # session_start + compaction
+        assert entries[1].type == "compaction"
+        assert entries[1].data["summary"] == "User asked to write a hello world script. Assistant created hello.py."
+        assert entries[1].data["files_read"] == ["hello.py", "README.md"]
+        assert entries[1].data["files_modified"] == ["hello.py"]
+        assert entries[1].data["messages_compacted"] == 8
+        assert entries[1].data["tokens_before"] == 5000
+        assert entries[1].data["tokens_after"] == 500
+
+        # Convert to messages — compaction should become a pinned UserMessage
+        messages = store.entries_to_messages(entries)
+        assert len(messages) == 1  # only the compaction entry becomes a message (session_start is skipped)
+
+        compaction_msg = messages[0]
+        assert isinstance(compaction_msg, UserMessage)
+        assert compaction_msg.pinned is True
+        assert "[Compacted conversation summary]" in compaction_msg.content[0].text
+        assert "hello world script" in compaction_msg.content[0].text
+
+    def test_compaction_entry_empty_summary_skipped(self, tmp_path: Path) -> None:
+        """Test compaction entry with empty summary is not converted to a message."""
+        store = SessionStore(sessions_dir=tmp_path)
+
+        compaction_entry = SessionEntry(
+            type="compaction",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            data={
+                "summary": "",
+                "files_read": [],
+                "files_modified": [],
+                "messages_compacted": 0,
+                "tokens_before": 0,
+                "tokens_after": 0,
+            },
+        )
+
+        messages = store.entries_to_messages([compaction_entry])
+        assert len(messages) == 0
