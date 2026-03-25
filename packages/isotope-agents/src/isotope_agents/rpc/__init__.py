@@ -1,10 +1,11 @@
-"""RPC protocol — JSONL command/event types and parsing.
+"""RPC protocol — JSONL command/event types, parsing, and server.
 
-Re-exports all public types from ``isotope_agents.rpc.protocol``.
+Re-exports all public types from ``isotope_agents.rpc.protocol`` and the
+:class:`RpcServer` from ``isotope_agents.rpc.server``.
 
 Usage::
 
-    from isotope_agents.rpc import PromptCommand, parse_command
+    from isotope_agents.rpc import PromptCommand, parse_command, RpcServer
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from .protocol import (
     ToolCallStartRpcEvent,
     parse_command,
 )
+from .server import RpcServer
 
 __all__ = [
     # Commands
@@ -52,4 +54,6 @@ __all__ = [
     "ErrorRpcEvent",
     # Parser
     "parse_command",
+    # Server
+    "RpcServer",
 ]
