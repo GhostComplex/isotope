@@ -1,0 +1,609 @@
+"""Main TUI application for isotope-agents.
+
+This module provides the interactive terminal user interface for isotope-agents,
+with model selection, command handling, and streaming response support with
+Claude Code style steering.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import os
+import sys
+from collections.abc import AsyncGenerator
+
+# Bypass system HTTP proxies (e.g. Clash) for localhost
+os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1,::1")
+
+from isotope_core import Agent
+from isotope_core.providers.proxy import ProxyProvider
+from isotope_core.types import AgentEvent, AssistantMessage
+
+from isotope_agents.presets import CODING
+
+from .input import StreamInputHandler
+from .render import _print, _print_inline, _StreamBuffer
+
+PROXY_BASE_URL = "http://localhost:4141/v1"
+DEFAULT_MODEL = "claude-opus-4.6"
+
+# Workspace directory — all relative file paths are resolved against this.
+WORKSPACE = os.getcwd()
+
+BETWEEN_MESSAGE_COMMANDS = (
+    "/tools          Toggle tools",
+    "/model <name>   Switch model",
+    "/system <text>  Change system prompt",
+    "/clear          Clear conversation",
+    "/history        Show usage stats",
+    "/debug          Toggle debug mode",
+    "/help           Show available commands",
+    "/quit           Exit",
+)
+
+DURING_STREAMING_COMMANDS = (
+    "Any text       Steering — cancels stream, queues your message",
+    "/follow <msg>  Queue follow-up for after completion",
+    "/abort         Abort current response",
+)
+
+
+# ---------------------------------------------------------------------------
+# Model listing
+# ---------------------------------------------------------------------------
+
+async def _fetch_models(base_url: str) -> list[str]:
+    """Fetch available models from the proxy."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{base_url}/models")
+            resp.raise_for_status()
+            data = resp.json()
+            models: list[str] = []
+            for m in data.get("data", []):
+                mid = m.get("id", "")
+                if mid:
+                    models.append(mid)
+            return sorted(models)
+    except Exception as exc:
+        _print(f"Warning: could not fetch models: {exc}", style="warn")
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Main TUI
+# ---------------------------------------------------------------------------
+
+class TUI:
+    """Interactive TUI for isotope-agents."""
+
+    def __init__(self) -> None:
+        self.model = DEFAULT_MODEL
+        self.preset = CODING
+        self.custom_system_prompt: str | None = None
+        self.tools_enabled = True
+        self.debug = False
+        self.agent: Agent | None = None
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self._is_streaming = False
+        self._stream_task: asyncio.Task[None] | None = None
+        self._steer_text: str | None = None  # set by input reader on steer
+        self._input_handler = StreamInputHandler()
+
+    @staticmethod
+    def _print_command_group(title: str, commands: tuple[str, ...]) -> None:
+        """Print a formatted command list."""
+        _print(title, style="info")
+        for command in commands:
+            _print(f"  {command}", style="dim")
+
+    def _print_help(self) -> None:
+        """Print interactive help."""
+        self._print_command_group("Commands (between messages):", BETWEEN_MESSAGE_COMMANDS)
+        _print("\nCommands (during streaming):", style="info")
+        for command in DURING_STREAMING_COMMANDS:
+            _print(f"  {command}", style="dim")
+
+    @staticmethod
+    def _print_known_commands() -> None:
+        """Print the short known-command summary."""
+        _print(
+            "Commands: /tools /model /system /clear /history /debug /help /quit",
+            style="dim",
+        )
+
+    def _print_stream_notice(
+        self,
+        message: str,
+        *,
+        prompt_toolkit: bool,
+        style: str,
+    ) -> None:
+        """Print a status line while the model is streaming."""
+        if prompt_toolkit:
+            print(f"  [{message}]", flush=True)
+        else:
+            _print(f"\n  [{message}]", style=style)
+
+    def _handle_stream_input_line(self, line: str, *, prompt_toolkit: bool) -> bool:
+        """Handle one line of user input while streaming.
+
+        Returns True when the caller should stop reading more input.
+        """
+        should_stop, steer_text = self._input_handler.handle_stream_input_line(
+            line, self.agent, prompt_toolkit=prompt_toolkit,
+            print_stream_notice=self._print_stream_notice
+        )
+
+        if steer_text:
+            self._steer_text = steer_text
+            self._cancel_stream()
+
+        return should_stop
+
+    async def _consume_stream_events(
+        self,
+        gen: AsyncGenerator[AgentEvent, None],
+        *,
+        prompt_toolkit: bool,
+        buf: _StreamBuffer | None,
+    ) -> None:
+        """Consume agent events for a single streamed response."""
+        if prompt_toolkit:
+            await asyncio.sleep(0)
+        try:
+            async for event in gen:
+                if self.debug:
+                    if buf:
+                        buf.flush()
+                        print(f"  [{event.type}]")
+                    else:
+                        _print(f"  [{event.type}]", style="dim")
+
+                if event.type == "message_update":
+                    delta = getattr(event, "delta", None)
+                    if delta:
+                        if buf:
+                            buf.write(delta)
+                        else:
+                            _print_inline(delta, style="model")
+
+                elif event.type == "tool_start":
+                    tool_name = getattr(event, "tool_name", "?")
+                    if buf:
+                        buf.flush()
+                        print(f"  [calling {tool_name}]")
+                    else:
+                        _print(f"\n  [calling {tool_name}]", style="tool")
+
+                elif event.type == "tool_end":
+                    is_error = getattr(event, "is_error", False)
+                    if is_error:
+                        if buf:
+                            buf.flush()
+                            print("  [tool error]")
+                        else:
+                            _print("  [tool error]", style="err")
+
+                elif event.type == "turn_end":
+                    msg = getattr(event, "message", None)
+                    if isinstance(msg, AssistantMessage):
+                        self.total_input_tokens += msg.usage.input_tokens
+                        self.total_output_tokens += msg.usage.output_tokens
+
+                elif event.type == "steer":
+                    if self.debug:
+                        turn = getattr(event, "turn_number", "?")
+                        if buf:
+                            buf.flush()
+                            print(f"  [steer applied, turn {turn}]")
+                        else:
+                            _print(f"\n  [steer applied, turn {turn}]", style="tool")
+
+                elif event.type == "follow_up":
+                    if self.debug:
+                        turn = getattr(event, "turn_number", "?")
+                        if buf:
+                            buf.flush()
+                            print(f"  [follow-up applied, turn {turn}]")
+                        else:
+                            _print(f"\n  [follow-up applied, turn {turn}]", style="tool")
+
+                elif event.type == "agent_end":
+                    reason = getattr(event, "reason", "completed")
+                    if reason != "completed" and self.debug:
+                        if buf:
+                            buf.flush()
+                            print(f"  [ended: {reason}]")
+                        else:
+                            _print(f"\n  [ended: {reason}]", style="dim")
+
+        except asyncio.CancelledError:
+            # On cancellation (steering), discard the buffer.
+            # The partial response is saved to history via partial_msg
+            # so the LLM has context. Don't flush here because the
+            # prompt_toolkit Application may already be torn down.
+            if buf:
+                buf.discard()
+        except Exception as exc:
+            if buf:
+                buf.flush()
+                print(f"Error: {exc}")
+            else:
+                _print(f"\nError: {exc}", style="err")
+
+    async def _finish_stream_iteration(
+        self,
+        *,
+        gen: AsyncGenerator[AgentEvent, None],
+        buf: _StreamBuffer | None,
+        done: set[asyncio.Task[None]],
+        pending: set[asyncio.Task[None]],
+        input_task: asyncio.Task[None],
+    ) -> tuple[str, str | None, AssistantMessage | None]:
+        """Finalize one streamed response iteration."""
+        if input_task in pending:
+            self._input_handler.close_stream_prompt(preserve_buffer=True)
+
+        for task in pending:
+            if not task.done():
+                task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        trailing_text = buf.drain() if buf else ""
+
+        partial_msg = self.agent.state.stream_message if self.agent is not None else None
+
+        # Explicitly close the generator so _run_loop's finally block runs
+        # synchronously, resetting agent.state.is_streaming to False.
+        await gen.aclose()
+
+        stream_task = self._stream_task
+        self._is_streaming = False
+        self._stream_task = None
+
+        steer_text = self._steer_text
+        stream_completed_naturally = (
+            stream_task is not None
+            and stream_task in done
+            and not stream_task.cancelled()
+            and stream_task.exception() is None
+        )
+        if steer_text and stream_completed_naturally:
+            self._input_handler.set_prefill_text(steer_text)
+            steer_text = None
+
+        assistant_partial = partial_msg if isinstance(partial_msg, AssistantMessage) else None
+        return trailing_text, steer_text, assistant_partial
+
+    def _apply_steering_redirect(
+        self,
+        steer_text: str,
+        partial_msg: AssistantMessage | None,
+    ) -> str:
+        """Apply a steering redirect after the current stream is interrupted."""
+        print(f"  [→ {steer_text}]")
+
+        # Drain the steering queue — we handle steering at the TUI level
+        # by calling prompt() directly, so stale queue entries would
+        # cause a duplicate redirect on the next agent_loop run.
+        while not self.agent._steering_queue.empty():
+            try:
+                self.agent._steering_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+        # Preserve the partial assistant response so the LLM knows what
+        # it had already said before the user interrupted.
+        if partial_msg is not None:
+            self.agent.append_message(partial_msg)
+
+        return steer_text
+
+    def _cancel_stream(self) -> None:
+        """Cancel the active stream task immediately (Claude Code style).
+
+        Sends asyncio.CancelledError into the provider's stream generator,
+        bypassing signal-based abort which has inherent polling latency.
+        """
+        if self._stream_task is not None and not self._stream_task.done():
+            self._stream_task.cancel()
+
+    def _create_agent(self) -> Agent:
+        """Create a new agent with current settings."""
+        provider = ProxyProvider(
+            model=self.model,
+            base_url=PROXY_BASE_URL,
+            api_key="not-needed",
+        )
+
+        # Use custom system prompt or preset system prompt
+        if self.custom_system_prompt:
+            system_prompt = self.custom_system_prompt
+        else:
+            system_prompt = self.preset.format_system_prompt(cwd=WORKSPACE)
+
+        # Get tools from preset or use built-in tools if tools are enabled
+        tools = list(self.preset.tools) if self.tools_enabled else []
+
+        return Agent(
+            provider=provider,
+            system_prompt=system_prompt,
+            tools=tools,
+        )
+
+    def _rebuild_agent(self, *, keep_history: bool = True) -> None:
+        """Rebuild the agent (e.g. after model / tool change)."""
+        old_messages = self.agent.messages[:] if self.agent and keep_history else []
+        self.agent = self._create_agent()
+        if old_messages:
+            self.agent.replace_messages(old_messages)
+
+    async def _select_model(self, models: list[str]) -> str:
+        """Let the user pick a model or accept the default."""
+        if models:
+            _print("\nAvailable models:", style="info")
+            for i, m in enumerate(models, 1):
+                marker = " (default)" if m == DEFAULT_MODEL else ""
+                _print(f"  {i}. {m}{marker}", style="dim")
+
+            choice = await self._input_handler.get_user_input(
+                f"\nSelect model [Enter for {DEFAULT_MODEL}]: "
+            )
+
+            choice = choice.strip()
+            if not choice:
+                return DEFAULT_MODEL
+
+            # Accept number or name
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(models):
+                    return models[idx]
+            except ValueError:
+                pass
+
+            # Accept partial name match
+            for m in models:
+                if choice.lower() in m.lower():
+                    return m
+
+            _print(f"Unknown model '{choice}', using {DEFAULT_MODEL}", style="warn")
+            return DEFAULT_MODEL
+        return DEFAULT_MODEL
+
+    async def _get_system_prompt(self) -> str:
+        """Prompt user for system prompt."""
+        prompt = await self._input_handler.get_user_input(
+            "\nSystem prompt (Enter to skip): "
+        )
+        return prompt.strip()
+
+    async def _handle_command(self, line: str) -> bool:
+        """Handle a slash command. Returns True if should quit."""
+        parts = line.split(maxsplit=1)
+        cmd = parts[0].lower()
+        arg = parts[1] if len(parts) > 1 else ""
+
+        if cmd == "/quit":
+            _print("Bye!", style="info")
+            return True
+
+        if cmd == "/tools":
+            self.tools_enabled = not self.tools_enabled
+            if self.tools_enabled:
+                names = ", ".join(t.name for t in self.preset.tools)
+                _print(f"Tools enabled: {names}", style="tool")
+            else:
+                _print("Tools disabled", style="tool")
+            self._rebuild_agent()
+            return False
+
+        if cmd == "/model":
+            if arg:
+                self.model = arg
+                _print(f"Model switched to: {self.model}", style="model")
+                self._rebuild_agent()
+            else:
+                _print("Usage: /model <name>", style="warn")
+            return False
+
+        if cmd == "/system":
+            if arg:
+                self.custom_system_prompt = arg
+                _print("System prompt updated.", style="info")
+                self._rebuild_agent()
+            else:
+                _print("Usage: /system <prompt>", style="warn")
+            return False
+
+        if cmd == "/clear":
+            self.total_input_tokens = 0
+            self.total_output_tokens = 0
+            self._rebuild_agent(keep_history=False)
+            _print("Conversation cleared.", style="info")
+            return False
+
+        if cmd == "/history":
+            if self.agent:
+                msg_count = len(self.agent.messages)
+                _print(f"Messages: {msg_count}", style="info")
+            _print(
+                f"Total tokens: in={self.total_input_tokens}, out={self.total_output_tokens}",
+                style="info",
+            )
+            return False
+
+        if cmd == "/debug":
+            self.debug = not self.debug
+            _print(f"Debug mode: {'on' if self.debug else 'off'}", style="info")
+            return False
+
+        if cmd == "/help":
+            self._print_help()
+            return False
+
+        _print(f"Unknown command: {cmd}", style="warn")
+        self._print_known_commands()
+        return False
+
+    async def _read_input_during_stream(self) -> None:
+        """Read input concurrently during streaming."""
+        await self._input_handler.read_input_during_stream(
+            self.agent,
+            lambda: self._is_streaming,
+            self._handle_stream_input_line,
+        )
+
+    async def _send_message(self, text: str) -> None:
+        """Send a user message and stream the response with concurrent input.
+
+        Claude Code style steering: any text typed during streaming cancels the
+        current response immediately and starts a new turn with that text.
+        The partial assistant response is preserved in history so the LLM has
+        context of what it already said.
+        """
+        if self.agent is None:
+            self._rebuild_agent()
+        assert self.agent is not None
+
+        current_text = text
+
+        # patch_stdout wraps the entire streaming loop so that print() output
+        # renders above prompt_toolkit's input prompt (Claude Code style).
+        ctx = self._input_handler.patch_stdout()
+        with ctx:
+            while True:
+                self._is_streaming = True
+                self._steer_text = None
+                trailing_text = ""
+
+                # Hold a reference to the generator for explicit lifecycle control.
+                # Just creating the generator doesn't execute code — it starts
+                # running only when _consume iterates it.
+                gen = self.agent.prompt(current_text)  # type: ignore[arg-type]
+
+                # When prompt_toolkit is active, use print() for output so that
+                # patch_stdout can route it above the input prompt (Rich Console
+                # bypasses patch_stdout because it holds the original sys.stdout).
+                _pt = self._input_handler.has_prompt_toolkit
+                buf = _StreamBuffer() if _pt else None
+
+                # Create input task FIRST so prompt_toolkit's Application starts
+                # before streaming output arrives (patch_stdout needs the Application
+                # running to route output above the prompt).
+                input_task = asyncio.create_task(self._read_input_during_stream())
+                self._stream_task = asyncio.create_task(
+                    self._consume_stream_events(gen, prompt_toolkit=_pt, buf=buf)
+                )
+
+                # Wait for whichever finishes first.
+                done, pending = await asyncio.wait(
+                    {self._stream_task, input_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                trailing_text, steer_text, partial_msg = await self._finish_stream_iteration(
+                    gen=gen,
+                    buf=buf,
+                    done=done,
+                    pending=pending,
+                    input_task=input_task,
+                )
+
+                if steer_text:
+                    current_text = self._apply_steering_redirect(steer_text, partial_msg)
+                    continue
+
+                if trailing_text:
+                    print(trailing_text)
+
+                # Normal completion — exit loop
+                break
+
+        # Print newline after streamed text + token usage
+        print()
+        # Show usage for last assistant message
+        assistant_msgs = [
+            m for m in self.agent.messages if isinstance(m, AssistantMessage)
+        ]
+        if assistant_msgs:
+            usage = assistant_msgs[-1].usage
+            _print(
+                f"[tokens: in={usage.input_tokens}, out={usage.output_tokens}]",
+                style="dim",
+            )
+
+    async def run(self) -> None:
+        """Main TUI loop."""
+        _print("isotope-agents TUI v1.0", style="info")
+        _print(f"Proxy: {PROXY_BASE_URL}", style="dim")
+        _print(f"Workspace: {WORKSPACE}", style="dim")
+
+        # Fetch and select model
+        models = await _fetch_models(PROXY_BASE_URL)
+        self.model = await self._select_model(models)
+        _print(f"Model: {self.model}", style="model")
+
+        # System prompt
+        custom_prompt = await self._get_system_prompt()
+        if custom_prompt:
+            self.custom_system_prompt = custom_prompt
+            _print(f"System prompt: {self.custom_system_prompt}", style="dim")
+        else:
+            _print(f"Using {self.preset.name} preset system prompt", style="dim")
+
+        # Create agent
+        self.agent = self._create_agent()
+
+        _print("\nType your message (or /help for commands). Ctrl+C to quit.\n", style="dim")
+
+        while True:
+            try:
+                if self._input_handler.has_prompt_toolkit:
+                    _print("─" * 50, style="white")
+                    line = await self._input_handler.get_user_input(
+                        "<style fg='#5599ff'><b>› </b></style>"
+                    )
+                    self._input_handler.clear_prefill_text()
+                else:
+                    _print_inline("> ", style="user")
+                    line = await self._input_handler.get_user_input("")
+            except (EOFError, KeyboardInterrupt):
+                print()
+                _print("Bye!", style="info")
+                break
+
+            line = line.strip()
+            if not line:
+                continue
+
+            if line.startswith("/"):
+                should_quit = await self._handle_command(line)
+                if should_quit:
+                    break
+                continue
+
+            await self._send_message(line)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    """Run the TUI."""
+    try:
+        asyncio.run(TUI().run())
+    except KeyboardInterrupt:
+        print("\nBye!")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
