@@ -180,9 +180,45 @@ This enables:
 - Web UI backend
 - Any app that wants to embed an agent
 
-### 5.5 Extensions
+### 5.5 Skills (AgentSkills Spec)
 
-Plugin system for extending the agent:
+Skills are packaged capabilities — tools + instructions + context files. Isotope adopts the [AgentSkills spec](https://agentskills.io) (same format as Claude/OpenClaw).
+
+```
+skill-name/
+├── SKILL.md              # Required: frontmatter (name, description) + instructions
+├── scripts/              # Optional: executable code (Python/Bash)
+├── references/           # Optional: docs loaded on demand
+└── assets/               # Optional: files used in output (templates, etc.)
+```
+
+**How it works:**
+
+1. At startup, agent scans all configured skill directories and reads SKILL.md **frontmatter only** (name + description) — cheap, just metadata
+2. When a user request matches a skill's description, the agent loads the full SKILL.md instructions into context
+3. The skill's tools (if any) are registered with the agent
+4. References are loaded on demand (the SKILL.md tells the agent when to read them)
+
+**Configuration:**
+
+```yaml
+# ~/.isotope/config.yaml
+preset: coding
+skills:
+  - ~/.isotope/skills/github/
+  - ~/.isotope/skills/docker/
+  - /path/to/custom-skill/
+```
+
+**Skill ↔ isotope-core boundary:**
+
+- isotope-core knows `Tool(name, schema, execute)` — nothing about skills
+- isotope-agents owns the skill loader, discovery, instruction injection, and tool registration
+- This keeps core lean and skill-unaware
+
+### 5.6 Extensions
+
+Plugin system for extending the agent beyond skills:
 
 - Custom tools (register via Python API)
 - Custom system prompts / personas
@@ -203,6 +239,7 @@ isotope/                          # this repo
 │   ├── compaction.py             # Context compaction
 │   ├── extensions.py             # Extension/plugin system
 │   ├── config.py                 # Config file loading
+│   ├── skills.py                 # Skill loader (AgentSkills spec)
 │   ├── rpc.py                    # RPC stdin/stdout mode
 │   ├── cli.py                    # CLI entry point
 │   ├── tui/
@@ -304,17 +341,21 @@ isotope = "isotope_agents.cli:main"
 
 ---
 
-### M4: RPC + Extensions (Week 4)
+### M4: RPC + Skills + Extensions (Week 4)
 
-**Goal:** Embeddable agent with plugin system. Ship update.
+**Goal:** Embeddable agent with skills and plugin system. Ship update.
 
 - [ ] RPC mode (stdin/stdout JSON protocol)
+- [ ] Skill loader (scan SKILL.md frontmatter, lazy-load instructions)
+- [ ] Skill → Tool registration bridge
+- [ ] Skill → System prompt injection
+- [ ] `skills:` config support
 - [ ] Extension system (custom tools, hooks)
 - [ ] MCP client (load tools from MCP servers)
 - [ ] `isotope rpc` command
 - [ ] Documentation
 
-**Ship:** Other apps can spawn `isotope rpc` and interact via JSON. MCP tools loadable.
+**Ship:** Skills loadable from local directories. Other apps can spawn `isotope rpc` and interact via JSON. MCP tools loadable.
 
 ---
 
