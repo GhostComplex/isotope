@@ -19,10 +19,11 @@ class TestPresets:
     """Tests for the preset system."""
 
     def test_coding_preset_has_all_tools(self) -> None:
-        """Coding preset has read, write, edit, bash, grep, glob."""
+        """Coding preset has read, write, edit, bash, grep, glob, web tools."""
         tool_names = {t.name for t in CODING.tools}
         assert tool_names == {
-            "read_file", "write_file", "edit_file", "bash", "grep", "glob_tool"
+            "read_file", "write_file", "edit_file", "bash", "grep", "glob_tool",
+            "web_search", "web_fetch",
         }
 
     def test_assistant_preset_no_write(self) -> None:
@@ -67,3 +68,36 @@ class TestPresets:
             description="A custom preset.",
         )
         assert custom.format_system_prompt(cwd="/home") == "You are /home."
+
+    def test_coding_preset_has_web_tools(self) -> None:
+        """Coding preset includes web_search and web_fetch."""
+        tool_names = {t.name for t in CODING.tools}
+        assert "web_search" in tool_names
+        assert "web_fetch" in tool_names
+
+    def test_assistant_preset_has_web_tools(self) -> None:
+        """Assistant preset includes web_search and web_fetch."""
+        tool_names = {t.name for t in ASSISTANT.tools}
+        assert "web_search" in tool_names
+        assert "web_fetch" in tool_names
+
+    def test_minimal_preset_no_web_tools(self) -> None:
+        """Minimal preset does NOT include web tools."""
+        tool_names = {t.name for t in MINIMAL.tools}
+        assert "web_search" not in tool_names
+        assert "web_fetch" not in tool_names
+
+    def test_coding_prompt_has_guidance(self) -> None:
+        """Coding prompt contains key guidance strings."""
+        prompt = CODING.system_prompt
+        assert "tracked for context management" in prompt
+        assert "web_search" in prompt
+        assert "web_fetch" in prompt
+        assert "2 attempts" in prompt
+
+    def test_assistant_prompt_has_guidance(self) -> None:
+        """Assistant prompt contains key guidance strings."""
+        prompt = ASSISTANT.system_prompt
+        assert "web_search" in prompt
+        assert "web_fetch" in prompt
+        assert "concise and direct" in prompt
