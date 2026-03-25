@@ -108,9 +108,35 @@ isotope-core           Agent loop, providers, middleware, events
 - **Streaming responses** with real-time output
 - **Claude Code-style steering** — type during streaming to redirect the agent
 - **prompt-toolkit integration** — visible input prompt during streaming
+- **Rich markdown rendering** — code blocks with syntax highlighting, formatted headings, lists
 - **Slash commands** — `/tools`, `/model`, `/system`, `/clear`, `/history`, `/debug`
 - **Follow-up queuing** — `/follow` to queue messages for after completion
 - **Abort** — `/abort` or Ctrl-C to stop the current response
+
+## Sessions
+
+Conversations persist across restarts. Sessions are saved to `~/.isotope/sessions/`.
+
+```bash
+# Resume a saved session
+isotope chat --session <session-id>
+
+# List all sessions
+isotope sessions
+
+# Delete a session
+isotope sessions --delete <session-id>
+```
+
+### TUI Session Commands
+
+| Command | Description |
+|---|---|
+| `/session` | Show current session info |
+| `/sessions` | List saved sessions |
+| `/session <id>` | Switch to a different session |
+| `/save` | Force save current session |
+| `/new` | Start a new session |
 
 ## Development
 
@@ -130,4 +156,4 @@ ruff check src/ tests/
 ## Links
 
 - [PRD](docs/PRD.md) — Product requirements document
-- [isotope-core](https://github.com/GhostComplex/isotopo-core) — Core agent loop library
+- [isotope-core](https://github.com/GhostComplex/isotope-core) — Core agent loop library

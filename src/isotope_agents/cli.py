@@ -152,15 +152,34 @@ def sessions(delete_id: str | None) -> None:
         click.echo("No saved sessions.")
         return
 
-    # Print a formatted table
-    click.echo(f"{'ID':<40} {'Updated':<20} {'Msgs':>5}  {'Summary'}")
-    click.echo("─" * 90)
-    for meta in listing:
-        updated = datetime.fromtimestamp(meta.updated_at, tz=UTC).strftime(
-            "%Y-%m-%d %H:%M"
-        )
-        short_id = meta.id[:36]
-        click.echo(f"{short_id:<40} {updated:<20} {meta.message_count:>5}  {meta.summary}")
+    # Print a formatted table — use rich if available
+    try:
+        from rich.console import Console
+        from rich.table import Table
+
+        table = Table(title="Saved Sessions")
+        table.add_column("ID", style="cyan", no_wrap=True)
+        table.add_column("Updated", style="green")
+        table.add_column("Msgs", justify="right", style="magenta")
+        table.add_column("Summary")
+
+        for meta in listing:
+            updated = datetime.fromtimestamp(meta.updated_at, tz=UTC).strftime(
+                "%Y-%m-%d %H:%M"
+            )
+            table.add_row(meta.id[:36], updated, str(meta.message_count), meta.summary)
+
+        Console().print(table)
+    except ImportError:
+        # Fallback to plain text
+        click.echo(f"{'ID':<40} {'Updated':<20} {'Msgs':>5}  {'Summary'}")
+        click.echo("─" * 90)
+        for meta in listing:
+            updated = datetime.fromtimestamp(meta.updated_at, tz=UTC).strftime(
+                "%Y-%m-%d %H:%M"
+            )
+            short_id = meta.id[:36]
+            click.echo(f"{short_id:<40} {updated:<20} {meta.message_count:>5}  {meta.summary}")
 
 
 if __name__ == "__main__":

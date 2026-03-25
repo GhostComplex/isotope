@@ -31,6 +31,9 @@ class IsotopeConfig:
     provider: ProviderConfig = field(default_factory=ProviderConfig)
     system_prompt: str | None = None
     extra_tools: list[str] = field(default_factory=list)
+    sessions_dir: str = "~/.isotope/sessions"
+    auto_save: bool = True
+    theme: str = "default"
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> IsotopeConfig:
@@ -79,4 +82,7 @@ class IsotopeConfig:
             provider=provider,
             system_prompt=data.get("system_prompt"),
             extra_tools=data.get("extra_tools", []),
+            sessions_dir=data.get("sessions_dir", cls.sessions_dir),
+            auto_save=data.get("auto_save", cls.auto_save),
+            theme=data.get("theme", cls.theme),
         )
