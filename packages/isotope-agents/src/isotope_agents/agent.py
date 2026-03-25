@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, AsyncGenerator
 
 from isotope_core import Agent
 from isotope_core.providers.base import Provider
 from isotope_core.tools import Tool
-from isotope_core.types import UserMessage
+from isotope_core.types import UserMessage, AgentEvent, TurnEndEvent, TextContent
 
 from isotope_agents.presets import Preset, get_preset
+from isotope_agents.session import SessionStore
 
 
 class IsotopeAgent:
@@ -41,6 +42,8 @@ class IsotopeAgent:
         system_prompt: str | None = None,
         extra_tools: list[Tool] | None = None,
         workspace: str | None = None,
+        session_id: str | None = None,
+        session_store: SessionStore | None = None,
     ) -> None:
         """Initialize the agent.
 
@@ -51,8 +54,14 @@ class IsotopeAgent:
             system_prompt: Override the preset's system prompt.
             extra_tools: Additional tools beyond the preset's tools.
             workspace: Working directory (defaults to cwd).
+            session_id: Existing session ID to resume (requires session_store).
+            session_store: Session store for conversation persistence.
         """
         self._workspace = workspace or os.getcwd()
+
+        # Store session persistence components
+        self._session_store = session_store
+        self._session_id = session_id
 
         # Resolve preset
         if isinstance(preset, str):
@@ -86,6 +95,9 @@ class IsotopeAgent:
         # Store model name for reference (used by CLI/TUI)
         self._model = model
 
+        # Handle session persistence
+        self._handle_session_persistence()
+
     def _patch_tool_workspaces(self, tools: list[Tool]) -> None:
         """Set workspace on tools that support it."""
         # Import tool modules and patch their _WORKSPACE
@@ -99,11 +111,36 @@ class IsotopeAgent:
         glob_mod._WORKSPACE = self._workspace
         read_mod._WORKSPACE = self._workspace
 
+    def _handle_session_persistence(self) -> None:
+        """Handle session creation or loading."""
+        if self._session_store is not None:
+            if self._session_id is None:
+                # Create a new session
+                model_name = self._model or "unknown"
+                self._session_id = self._session_store.create(
+                    model=model_name,
+                    preset=self._preset.name,
+                )
+            else:
+                # Load existing session and replay messages
+                try:
+                    entries = self._session_store.load(self._session_id)
+                    messages = self._session_store.entries_to_messages(entries)
+                    if messages:
+                        self._agent.replace_messages(messages)
+                except FileNotFoundError:
+                    # Session file doesn't exist, create new session
+                    model_name = self._model or "unknown"
+                    self._session_id = self._session_store.create(
+                        model=model_name,
+                        preset=self._preset.name,
+                    )
+
     async def run(
         self,
         message: str,
         **kwargs: Any,
-    ) -> Any:
+    ) -> AsyncGenerator[AgentEvent, None]:
         """Run the agent with a message.
 
         Args:
@@ -113,10 +150,46 @@ class IsotopeAgent:
         Returns:
             The agent's event stream (async iterable of AgentEvent).
         """
-        return await self._agent.run(
-            messages=[UserMessage.text(message)],
+        # Store user message to session if persistence enabled
+        if self._session_store and self._session_id:
+            user_msg = UserMessage(
+                content=[TextContent(text=message)],
+                timestamp=1000,  # Will be overridden by session store
+            )
+            entry = self._session_store.message_to_entry(user_msg)
+            self._session_store.append(self._session_id, entry)
+
+        # Get the original event stream
+        original_stream = self._agent.run(
+            messages=[UserMessage(
+                content=[TextContent(text=message)],
+                timestamp=1000,
+            )],
             **kwargs,
         )
+
+        # Wrap the stream to capture session events
+        async for event in original_stream:
+            # Store relevant events to session
+            if self._session_store and self._session_id:
+                await self._handle_session_event(event)
+
+            yield event
+
+    async def _handle_session_event(self, event: AgentEvent) -> None:
+        """Handle an agent event for session persistence."""
+        if not self._session_store or not self._session_id:
+            return
+
+        if isinstance(event, TurnEndEvent):
+            # Store the assistant message
+            entry = self._session_store.message_to_entry(event.message)
+            self._session_store.append(self._session_id, entry)
+
+            # Store any tool results
+            for tool_result in event.tool_results:
+                entry = self._session_store.message_to_entry(tool_result)
+                self._session_store.append(self._session_id, entry)
 
     async def follow_up(self, message: str) -> None:
         """Queue a follow-up message for the agent.
@@ -157,3 +230,8 @@ class IsotopeAgent:
     def core(self) -> Agent:
         """The underlying isotope-core Agent (for advanced use)."""
         return self._agent
+
+    @property
+    def session_id(self) -> str | None:
+        """The current session ID (if session persistence is enabled)."""
+        return self._session_id

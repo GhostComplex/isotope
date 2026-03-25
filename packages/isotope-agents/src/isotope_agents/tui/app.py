@@ -16,11 +16,12 @@ from collections.abc import AsyncGenerator
 # Bypass system HTTP proxies (e.g. Clash) for localhost
 os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1,::1")
 
-from isotope_core import Agent
 from isotope_core.providers.proxy import ProxyProvider
 from isotope_core.types import AgentEvent, AssistantMessage
 
+from isotope_agents.agent import IsotopeAgent
 from isotope_agents.presets import CODING
+from isotope_agents.session import SessionStore
 
 from .input import StreamInputHandler
 from .render import _print, _print_inline, _StreamBuffer
@@ -86,7 +87,8 @@ class TUI:
         self.custom_system_prompt: str | None = None
         self.tools_enabled = True
         self.debug = False
-        self.agent: Agent | None = None
+        self.agent: IsotopeAgent | None = None
+        self.session_store = SessionStore()
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self._is_streaming = False
@@ -257,7 +259,7 @@ class TUI:
 
         trailing_text = buf.drain() if buf else ""
 
-        partial_msg = self.agent.state.stream_message if self.agent is not None else None
+        partial_msg = self.agent.core.state.stream_message if self.agent is not None else None
 
         # Explicitly close the generator so _run_loop's finally block runs
         # synchronously, resetting agent.state.is_streaming to False.
@@ -292,16 +294,16 @@ class TUI:
         # Drain the steering queue — we handle steering at the TUI level
         # by calling prompt() directly, so stale queue entries would
         # cause a duplicate redirect on the next agent_loop run.
-        while not self.agent._steering_queue.empty():
+        while not self.agent.core._steering_queue.empty():
             try:
-                self.agent._steering_queue.get_nowait()
+                self.agent.core._steering_queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
 
         # Preserve the partial assistant response so the LLM knows what
         # it had already said before the user interrupted.
         if partial_msg is not None:
-            self.agent.append_message(partial_msg)
+            self.agent.core.append_message(partial_msg)
 
         return steer_text
 
@@ -314,7 +316,7 @@ class TUI:
         if self._stream_task is not None and not self._stream_task.done():
             self._stream_task.cancel()
 
-    def _create_agent(self) -> Agent:
+    def _create_agent(self) -> IsotopeAgent:
         """Create a new agent with current settings."""
         provider = ProxyProvider(
             model=self.model,
@@ -322,27 +324,24 @@ class TUI:
             api_key="not-needed",
         )
 
-        # Use custom system prompt or preset system prompt
-        if self.custom_system_prompt:
-            system_prompt = self.custom_system_prompt
-        else:
-            system_prompt = self.preset.format_system_prompt(cwd=WORKSPACE)
+        # Use minimal preset when tools are disabled, otherwise use the current preset
+        preset = "minimal" if not self.tools_enabled else self.preset
 
-        # Get tools from preset or use built-in tools if tools are enabled
-        tools = list(self.preset.tools) if self.tools_enabled else []
-
-        return Agent(
+        return IsotopeAgent(
             provider=provider,
-            system_prompt=system_prompt,
-            tools=tools,
+            preset=preset,
+            model=self.model,
+            system_prompt=self.custom_system_prompt,
+            workspace=WORKSPACE,
+            session_store=self.session_store,
         )
 
     def _rebuild_agent(self, *, keep_history: bool = True) -> None:
         """Rebuild the agent (e.g. after model / tool change)."""
-        old_messages = self.agent.messages[:] if self.agent and keep_history else []
+        old_messages = self.agent.core.messages[:] if self.agent and keep_history else []
         self.agent = self._create_agent()
         if old_messages:
-            self.agent.replace_messages(old_messages)
+            self.agent.core.replace_messages(old_messages)
 
     async def _select_model(self, models: list[str]) -> str:
         """Let the user pick a model or accept the default."""
@@ -426,12 +425,15 @@ class TUI:
             self.total_input_tokens = 0
             self.total_output_tokens = 0
             self._rebuild_agent(keep_history=False)
-            _print("Conversation cleared.", style="info")
+            if self.agent and self.agent.session_id:
+                _print(f"New session: {self.agent.session_id}", style="info")
+            else:
+                _print("Conversation cleared.", style="info")
             return False
 
         if cmd == "/history":
             if self.agent:
-                msg_count = len(self.agent.messages)
+                msg_count = len(self.agent.core.messages)
                 _print(f"Messages: {msg_count}", style="info")
             _print(
                 f"Total tokens: in={self.total_input_tokens}, out={self.total_output_tokens}",
@@ -486,7 +488,7 @@ class TUI:
                 # Hold a reference to the generator for explicit lifecycle control.
                 # Just creating the generator doesn't execute code — it starts
                 # running only when _consume iterates it.
-                gen = self.agent.prompt(current_text)  # type: ignore[arg-type]
+                gen = self.agent.run(current_text)  # type: ignore[arg-type]
 
                 # When prompt_toolkit is active, use print() for output so that
                 # patch_stdout can route it above the input prompt (Rich Console
@@ -530,7 +532,7 @@ class TUI:
         print()
         # Show usage for last assistant message
         assistant_msgs = [
-            m for m in self.agent.messages if isinstance(m, AssistantMessage)
+            m for m in self.agent.core.messages if isinstance(m, AssistantMessage)
         ]
         if assistant_msgs:
             usage = assistant_msgs[-1].usage
@@ -560,6 +562,10 @@ class TUI:
 
         # Create agent
         self.agent = self._create_agent()
+
+        # Display session ID if available
+        if self.agent.session_id:
+            _print(f"Session: {self.agent.session_id}", style="info")
 
         _print("\nType your message (or /help for commands). Ctrl+C to quit.\n", style="dim")
 
