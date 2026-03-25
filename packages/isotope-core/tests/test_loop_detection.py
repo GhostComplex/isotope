@@ -338,7 +338,9 @@ async def test_loop_detection_same_call_steering(mock_tool: MockTool):
             break
 
     # Check that a SteerEvent was emitted (should have been found above)
-    assert steer_found, f"Expected SteerEvent to be emitted, but none found. Found {len(events)} events."
+    assert steer_found, (
+        f"Expected SteerEvent, got {len(events)} events"
+    )
 
     # Check that at least one SteerEvent was emitted
     steer_events = [e for e in events if isinstance(e, SteerEvent)]
@@ -395,7 +397,9 @@ async def test_loop_detection_same_tool_event(mock_tool: MockTool):
             break
 
     # Check that LoopDetectedEvent was emitted
-    assert loop_found, f"Expected LoopDetectedEvent to be emitted, but none found. Found {len(events)} events."
+    assert loop_found, (
+        f"Expected LoopDetectedEvent, got {len(events)} events"
+    )
 
     loop_events = [e for e in events if isinstance(e, LoopDetectedEvent)]
     assert len(loop_events) > 0
@@ -571,7 +575,9 @@ async def test_loop_detection_threshold_customization(mock_tool: MockTool):
             break
 
     # Check that LoopDetectedEvent was emitted with custom threshold
-    assert loop_found, f"Expected LoopDetectedEvent to be emitted, but none found. Found {len(events)} events."
+    assert loop_found, (
+        f"Expected LoopDetectedEvent, got {len(events)} events"
+    )
 
     # Now test the steering threshold separately with a different set of calls
     responses2 = [
@@ -620,4 +626,6 @@ async def test_loop_detection_threshold_customization(mock_tool: MockTool):
             break
 
     # Check that steering was triggered with custom threshold
-    assert steer_found, f"Expected SteerEvent to be emitted, but none found. Found {len(events2)} events."
+    assert steer_found, (
+        f"Expected SteerEvent, got {len(events2)} events"
+    )
