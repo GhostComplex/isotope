@@ -23,6 +23,7 @@ from isotope_agents.agent import IsotopeAgent
 from isotope_agents.presets import CODING
 from isotope_agents.session import SessionStore
 
+from .commands import CommandHandler, CommandResult, TUIState
 from .input import StreamInputHandler
 from .render import _print, _print_inline, _StreamBuffer, render_markdown, render_tool_output
 
@@ -31,25 +32,6 @@ DEFAULT_MODEL = "claude-opus-4.6"
 
 # Workspace directory — all relative file paths are resolved against this.
 WORKSPACE = os.getcwd()
-
-BETWEEN_MESSAGE_COMMANDS = (
-    "/tools          Toggle tools",
-    "/model <name>   Switch model",
-    "/system <text>  Change system prompt",
-    "/clear          Clear conversation",
-    "/compact        Compact conversation history",
-    "/history        Show usage stats",
-    "/sessions       List sessions",
-    "/debug          Toggle debug mode",
-    "/help           Show available commands",
-    "/quit           Exit",
-)
-
-DURING_STREAMING_COMMANDS = (
-    "Any text       Steering — cancels stream, queues your message",
-    "/follow <msg>  Queue follow-up for after completion",
-    "/abort         Abort current response",
-)
 
 
 # ---------------------------------------------------------------------------
@@ -84,42 +66,61 @@ class TUI:
     """Interactive TUI for isotope-agents."""
 
     def __init__(self) -> None:
-        self.model = DEFAULT_MODEL
-        self.preset = CODING
-        self.custom_system_prompt: str | None = None
-        self.tools_enabled = True
-        self.debug = False
+        self._state = TUIState(model=DEFAULT_MODEL, preset=CODING)
+        self._command_handler = CommandHandler(self._state)
         self.agent: IsotopeAgent | None = None
         self.session_store = SessionStore()
-        self.total_input_tokens = 0
-        self.total_output_tokens = 0
         self._is_streaming = False
         self._stream_task: asyncio.Task[None] | None = None
         self._steer_text: str | None = None  # set by input reader on steer
         self._input_handler = StreamInputHandler()
         self.resume_session_id: str | None = None  # session to resume
 
-    @staticmethod
-    def _print_command_group(title: str, commands: tuple[str, ...]) -> None:
-        """Print a formatted command list."""
-        _print(title, style="info")
-        for command in commands:
-            _print(f"  {command}", style="dim")
+    # -- convenience accessors for state fields used throughout the class ----
 
-    def _print_help(self) -> None:
-        """Print interactive help."""
-        self._print_command_group("Commands (between messages):", BETWEEN_MESSAGE_COMMANDS)
-        _print("\nCommands (during streaming):", style="info")
-        for command in DURING_STREAMING_COMMANDS:
-            _print(f"  {command}", style="dim")
+    @property
+    def model(self) -> str:
+        return self._state.model
 
-    @staticmethod
-    def _print_known_commands() -> None:
-        """Print the short known-command summary."""
-        _print(
-            "Commands: /tools /model /system /clear /compact /history /sessions /debug /help /quit",
-            style="dim",
-        )
+    @model.setter
+    def model(self, value: str) -> None:
+        self._state.model = value
+
+    @property
+    def preset(self) -> object:
+        return self._state.preset
+
+    @property
+    def tools_enabled(self) -> bool:
+        return self._state.tools_enabled
+
+    @property
+    def debug(self) -> bool:
+        return self._state.debug
+
+    @property
+    def custom_system_prompt(self) -> str | None:
+        return self._state.custom_system_prompt
+
+    @custom_system_prompt.setter
+    def custom_system_prompt(self, value: str | None) -> None:
+        self._state.custom_system_prompt = value
+
+    @property
+    def total_input_tokens(self) -> int:
+        return self._state.total_input_tokens
+
+    @total_input_tokens.setter
+    def total_input_tokens(self, value: int) -> None:
+        self._state.total_input_tokens = value
+
+    @property
+    def total_output_tokens(self) -> int:
+        return self._state.total_output_tokens
+
+    @total_output_tokens.setter
+    def total_output_tokens(self, value: int) -> None:
+        self._state.total_output_tokens = value
 
     def _print_stream_notice(
         self,
@@ -420,119 +421,75 @@ class TUI:
 
     async def _handle_command(self, line: str) -> bool:
         """Handle a slash command. Returns True if should quit."""
-        parts = line.split(maxsplit=1)
-        cmd = parts[0].lower()
-        arg = parts[1] if len(parts) > 1 else ""
+        result: CommandResult = await self._command_handler.handle(line)
 
-        if cmd == "/quit":
-            _print("Bye!", style="info")
-            return True
+        # Render the message produced by the command handler.
+        if result.message:
+            for msg_line in result.message.split("\n"):
+                _print(msg_line, style=result.style)
 
-        if cmd == "/tools":
-            self.tools_enabled = not self.tools_enabled
-            if self.tools_enabled:
-                names = ", ".join(t.name for t in self.preset.tools)
-                _print(f"Tools enabled: {names}", style="tool")
-            else:
-                _print("Tools disabled", style="tool")
+        # Execute follow-up actions that need I/O or the agent.
+        if result.action == "rebuild_agent":
             self._rebuild_agent()
-            return False
-
-        if cmd == "/model":
-            if arg:
-                self.model = arg
-                _print(f"Model switched to: {self.model}", style="model")
-                self._rebuild_agent()
-            else:
-                _print("Usage: /model <name>", style="warn")
-            return False
-
-        if cmd == "/system":
-            if arg:
-                self.custom_system_prompt = arg
-                _print("System prompt updated.", style="info")
-                self._rebuild_agent()
-            else:
-                _print("Usage: /system <prompt>", style="warn")
-            return False
-
-        if cmd == "/clear":
-            self.total_input_tokens = 0
-            self.total_output_tokens = 0
+        elif result.action == "rebuild_agent_clear":
             self._rebuild_agent(keep_history=False)
             if self.agent and self.agent.session_id:
                 _print(f"New session: {self.agent.session_id}", style="info")
-            else:
-                _print("Conversation cleared.", style="info")
-            return False
-
-        if cmd == "/compact":
-            if self.agent is None:
-                _print("No active agent. Send a message first.", style="warn")
-                return False
-            try:
-                result = await self.agent.compact()
-                if result.messages_compacted > 0:
-                    saved = result.tokens_before - result.tokens_after
-                    _print(
-                        f"Compacted {result.messages_compacted} messages, "
-                        f"saved ~{saved} tokens. "
-                        f"Files: read={result.files_read}, modified={result.files_modified}",
-                        style="info",
-                    )
-                else:
-                    _print("Nothing to compact (too few messages).", style="info")
-            except Exception as e:
-                _print(f"Compaction failed: {e}", style="warn")
-            return False
-
-        if cmd == "/history":
+        elif result.action == "compact":
+            await self._execute_compact()
+        elif result.action == "history":
             if self.agent:
                 msg_count = len(self.agent.core.messages)
                 _print(f"Messages: {msg_count}", style="info")
-            _print(
-                f"Total tokens: in={self.total_input_tokens}, out={self.total_output_tokens}",
-                style="info",
-            )
-            return False
+        elif result.action == "sessions":
+            await self._execute_sessions()
 
-        if cmd == "/sessions":
-            try:
-                sessions = self.session_store.list_sessions()
-                if not sessions:
-                    _print("No sessions found.", style="info")
-                    return False
+        return result.should_quit
 
-                # Limit to 10 sessions for inline display
-                sessions = sessions[:10]
+    async def _execute_compact(self) -> None:
+        """Execute the /compact action (requires agent)."""
+        if self.agent is None:
+            _print("No active agent. Send a message first.", style="warn")
+            return
+        try:
+            result = await self.agent.compact()
+            if result.messages_compacted > 0:
+                saved = result.tokens_before - result.tokens_after
+                _print(
+                    f"Compacted {result.messages_compacted} messages, "
+                    f"saved ~{saved} tokens. "
+                    f"Files: read={result.files_read}, modified={result.files_modified}",
+                    style="info",
+                )
+            else:
+                _print("Nothing to compact (too few messages).", style="info")
+        except Exception as e:
+            _print(f"Compaction failed: {e}", style="warn")
 
-                _print("Recent sessions:", style="info")
-                _print(f"{'ID':<8} {'Started':<19} {'Messages':<8} {'Last message'}", style="dim")
-                _print("-" * 80, style="dim")
+    async def _execute_sessions(self) -> None:
+        """Execute the /sessions action (requires session store)."""
+        try:
+            sessions = self.session_store.list_sessions()
+            if not sessions:
+                _print("No sessions found.", style="info")
+                return
 
-                for session in sessions:
-                    # Format timestamp to remove timezone and seconds
-                    started_str = session.started_at[:19].replace('T', ' ')
-                    last_msg_preview = session.last_message_preview[:40] + ("..." if len(session.last_message_preview) > 40 else "")
+            # Limit to 10 sessions for inline display
+            sessions = sessions[:10]
 
-                    _print(f"{session.id:<8} {started_str:<19} {session.message_count:<8} {last_msg_preview}", style="dim")
+            _print("Recent sessions:", style="info")
+            _print(f"{'ID':<8} {'Started':<19} {'Messages':<8} {'Last message'}", style="dim")
+            _print("-" * 80, style="dim")
 
-            except Exception as e:
-                _print(f"Error listing sessions: {e}", style="warn")
-            return False
+            for session in sessions:
+                # Format timestamp to remove timezone and seconds
+                started_str = session.started_at[:19].replace('T', ' ')
+                last_msg_preview = session.last_message_preview[:40] + ("..." if len(session.last_message_preview) > 40 else "")
 
-        if cmd == "/debug":
-            self.debug = not self.debug
-            _print(f"Debug mode: {'on' if self.debug else 'off'}", style="info")
-            return False
+                _print(f"{session.id:<8} {started_str:<19} {session.message_count:<8} {last_msg_preview}", style="dim")
 
-        if cmd == "/help":
-            self._print_help()
-            return False
-
-        _print(f"Unknown command: {cmd}", style="warn")
-        self._print_known_commands()
-        return False
+        except Exception as e:
+            _print(f"Error listing sessions: {e}", style="warn")
 
     async def _read_input_during_stream(self) -> None:
         """Read input concurrently during streaming."""
