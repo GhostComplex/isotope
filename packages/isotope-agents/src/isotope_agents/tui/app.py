@@ -24,6 +24,7 @@ from isotope_agents.presets import CODING
 from isotope_agents.session import SessionStore
 
 from .commands import CommandHandler, CommandResult, TUIState
+from .events import EventAction, process_event
 from .input import StreamInputHandler
 from .render import _print, _print_inline, _StreamBuffer, render_markdown, render_tool_output
 
@@ -163,81 +164,9 @@ class TUI:
             await asyncio.sleep(0)
         try:
             async for event in gen:
-                if self.debug:
-                    if buf:
-                        buf.flush()
-                        print(f"  [{event.type}]")
-                    else:
-                        _print(f"  [{event.type}]", style="dim")
-
-                if event.type == "message_update":
-                    delta = getattr(event, "delta", None)
-                    if delta:
-                        if buf:
-                            buf.write(delta)
-                        else:
-                            _print_inline(delta, style="model")
-
-                elif event.type == "tool_start":
-                    tool_name = getattr(event, "tool_name", "?")
-                    if buf:
-                        buf.flush()
-                        print(f"  [calling {tool_name}]")
-                    else:
-                        _print(f"\n  [calling {tool_name}]", style="tool")
-
-                elif event.type == "tool_end":
-                    tool_name = getattr(event, "tool_name", "?")
-                    tool_output = getattr(event, "output", "")
-                    is_error = getattr(event, "is_error", False)
-
-                    if buf:
-                        buf.flush()
-
-                    # Use rich rendering for tool output
-                    render_tool_output(tool_name, tool_output, is_error)
-
-                elif event.type == "message_end":
-                    # Render the completed assistant message as markdown
-                    message = getattr(event, "message", None)
-                    if isinstance(message, AssistantMessage) and message.text:
-                        if buf:
-                            buf.flush()
-                        # Clear any buffered content and render as markdown
-                        render_markdown(message.text)
-
-                elif event.type == "turn_end":
-                    msg = getattr(event, "message", None)
-                    if isinstance(msg, AssistantMessage):
-                        self.total_input_tokens += msg.usage.input_tokens
-                        self.total_output_tokens += msg.usage.output_tokens
-
-                elif event.type == "steer":
-                    if self.debug:
-                        turn = getattr(event, "turn_number", "?")
-                        if buf:
-                            buf.flush()
-                            print(f"  [steer applied, turn {turn}]")
-                        else:
-                            _print(f"\n  [steer applied, turn {turn}]", style="tool")
-
-                elif event.type == "follow_up":
-                    if self.debug:
-                        turn = getattr(event, "turn_number", "?")
-                        if buf:
-                            buf.flush()
-                            print(f"  [follow-up applied, turn {turn}]")
-                        else:
-                            _print(f"\n  [follow-up applied, turn {turn}]", style="tool")
-
-                elif event.type == "agent_end":
-                    reason = getattr(event, "reason", "completed")
-                    if reason != "completed" and self.debug:
-                        if buf:
-                            buf.flush()
-                            print(f"  [ended: {reason}]")
-                        else:
-                            _print(f"\n  [ended: {reason}]", style="dim")
+                actions = process_event(event, debug=self.debug)
+                for action in actions:
+                    self._apply_event_action(action, buf=buf, prompt_toolkit=prompt_toolkit)
 
         except asyncio.CancelledError:
             # On cancellation (steering), discard the buffer.
@@ -252,6 +181,50 @@ class TUI:
                 print(f"Error: {exc}")
             else:
                 _print(f"\nError: {exc}", style="err")
+
+    def _apply_event_action(
+        self,
+        action: EventAction,
+        *,
+        buf: _StreamBuffer | None,
+        prompt_toolkit: bool,
+    ) -> None:
+        """Apply a single EventAction to the display."""
+        if action.type == "text":
+            if buf:
+                buf.write(action.content)
+            else:
+                _print_inline(action.content, style="model")
+
+        elif action.type == "tool_start":
+            if buf:
+                buf.flush()
+                print(f"  [calling {action.tool_name}]")
+            else:
+                _print(f"\n  [calling {action.tool_name}]", style="tool")
+
+        elif action.type == "tool_end":
+            if buf:
+                buf.flush()
+            render_tool_output(action.tool_name, action.content, action.is_error)
+
+        elif action.type == "message_end":
+            if buf:
+                buf.flush()
+            render_markdown(action.content)
+
+        elif action.type == "usage":
+            self.total_input_tokens += action.input_tokens
+            self.total_output_tokens += action.output_tokens
+
+        elif action.type == "debug":
+            if buf:
+                buf.flush()
+                print(f"  {action.content}")
+            else:
+                _print(f"  {action.content}", style="dim")
+
+        # "none" actions are intentionally ignored.
 
     async def _finish_stream_iteration(
         self,
