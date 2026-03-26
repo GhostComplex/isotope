@@ -7,8 +7,18 @@ import subprocess
 import sys
 from unittest.mock import patch, MagicMock
 
-from isotope_agents.cli import create_parser, main, list_sessions
+from isotope_agents.cli import create_parser, handle_agent_event, main, list_sessions, run_rpc
 from isotope_agents.session import SessionMeta
+from isotope_core.types import (
+    AssistantMessage,
+    MessageUpdateEvent,
+    TextContent,
+    ToolEndEvent,
+    ToolStartEvent,
+    TurnEndEvent,
+    Usage,
+    UserMessage,
+)
 
 
 class TestCLI:
@@ -256,6 +266,247 @@ class TestSessionsCommand:
         calls = mock_print.call_args_list
         session_lines = [call for call in calls if 'session' in str(call)]
         assert len(session_lines) == 5
+
+
+class TestHandleAgentEvent:
+    """Tests for handle_agent_event() output routing."""
+
+    def test_message_update_prints_delta(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """MessageUpdateEvent with delta prints content to stdout."""
+        msg = AssistantMessage(
+            content=[TextContent(text="hi")],
+            timestamp=0,
+        )
+        event = MessageUpdateEvent(message=msg, delta="hello world")
+        handle_agent_event(event)
+
+        captured = capsys.readouterr()
+        assert captured.out == "hello world"  # no trailing newline (end="")
+
+    def test_message_update_no_delta_prints_nothing(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """MessageUpdateEvent without delta prints nothing."""
+        msg = AssistantMessage(content=[TextContent(text="")], timestamp=0)
+        event = MessageUpdateEvent(message=msg, delta=None)
+        handle_agent_event(event)
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_tool_start_prints_tool_name(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """ToolStartEvent prints tool name to stderr."""
+        event = ToolStartEvent(tool_call_id="tc1", tool_name="read_file", args={"path": "/a"})
+        handle_agent_event(event)
+
+        captured = capsys.readouterr()
+        assert "[calling read_file]" in captured.err
+
+    def test_tool_end_error_prints_error_marker(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """ToolEndEvent with is_error prints error marker to stderr."""
+        event = ToolEndEvent(tool_call_id="tc1", tool_name="run", result="fail", is_error=True)
+        handle_agent_event(event)
+
+        captured = capsys.readouterr()
+        assert "[tool error]" in captured.err
+
+    def test_tool_end_success_prints_nothing(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """ToolEndEvent without error prints nothing."""
+        event = ToolEndEvent(tool_call_id="tc1", tool_name="run", result="ok", is_error=False)
+        handle_agent_event(event)
+
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_turn_end_prints_newline_and_usage(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """TurnEndEvent with AssistantMessage prints newline and token usage."""
+        msg = AssistantMessage(
+            content=[TextContent(text="done")],
+            usage=Usage(input_tokens=100, output_tokens=50),
+            timestamp=0,
+        )
+        event = TurnEndEvent(message=msg)
+        handle_agent_event(event)
+
+        captured = capsys.readouterr()
+        assert captured.out == "\n"
+        assert "in=100" in captured.err
+        assert "out=50" in captured.err
+
+    def test_turn_end_non_assistant_message(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """TurnEndEvent with non-AssistantMessage prints newline only."""
+        msg = UserMessage(content=[TextContent(text="hi")], timestamp=0)
+        event = TurnEndEvent(message=msg)
+        handle_agent_event(event)
+
+        captured = capsys.readouterr()
+        assert captured.out == "\n"
+        # No usage line printed
+        assert "tokens" not in captured.err
+
+    def test_unknown_event_no_crash(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Unknown event types do not crash."""
+        event = MagicMock()
+        event.type = "some_future_event"
+        handle_agent_event(event)
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+
+class TestMainDispatch:
+    """Tests for main() dispatching to correct subcommand handlers."""
+
+    @patch("isotope_agents.cli.launch_tui")
+    def test_main_chat_dispatches_to_launch_tui(self, mock_tui: MagicMock) -> None:
+        """main() with 'chat' dispatches to launch_tui."""
+        with patch("sys.argv", ["isotope", "chat"]):
+            # chat path calls launch_tui without sys.exit, so it may or may not raise
+            try:
+                main()
+            except SystemExit:
+                pass
+        mock_tui.assert_called_once()
+        call_args = mock_tui.call_args
+        assert call_args[0][0] == "claude-opus-4.6"  # model default
+        assert call_args[0][1] == "coding"  # preset default
+        assert call_args[0][2] is False  # no_tools default
+
+    @patch("isotope_agents.cli.list_sessions")
+    def test_main_sessions_dispatches_to_list_sessions(self, mock_ls: MagicMock) -> None:
+        """main() with 'sessions' dispatches to list_sessions."""
+        with patch("sys.argv", ["isotope", "sessions", "--limit", "3"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+        mock_ls.assert_called_once_with(3)
+
+    @patch("isotope_agents.cli.run_rpc")
+    def test_main_rpc_dispatches_to_run_rpc(self, mock_rpc: MagicMock) -> None:
+        """main() with 'rpc' dispatches to run_rpc."""
+        with patch("sys.argv", ["isotope", "--model", "m1", "--preset", "minimal", "rpc", "--session", "s1"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+        mock_rpc.assert_called_once_with("m1", "minimal", "s1")
+
+    @patch("isotope_agents.cli.asyncio")
+    def test_main_run_dispatches_asyncio_run(self, mock_asyncio: MagicMock) -> None:
+        """main() with 'run' calls asyncio.run with run_one_shot coroutine."""
+        with patch("sys.argv", ["isotope", "run", "hello"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 0
+        mock_asyncio.run.assert_called_once()
+
+
+class TestRunRpc:
+    """Tests for run_rpc() wiring."""
+
+    @patch("isotope_agents.cli.asyncio")
+    @patch("isotope_agents.cli.RpcServer")
+    @patch("isotope_agents.cli.IsotopeAgent")
+    @patch("isotope_agents.cli.get_preset")
+    @patch("isotope_agents.cli.ProxyProvider")
+    @patch("isotope_agents.cli.load_config")
+    def test_run_rpc_wires_agent_and_server(
+        self,
+        mock_load_config: MagicMock,
+        mock_provider_cls: MagicMock,
+        mock_get_preset: MagicMock,
+        mock_agent_cls: MagicMock,
+        mock_server_cls: MagicMock,
+        mock_asyncio: MagicMock,
+    ) -> None:
+        """run_rpc creates a ProxyProvider, IsotopeAgent, and RpcServer then runs it."""
+        # Setup config mock
+        mock_config = MagicMock()
+        mock_config.model = "default"
+        mock_config.provider.base_url = "http://localhost:4141"
+        mock_config.provider.api_key = "test-key"
+        mock_load_config.return_value = mock_config
+
+        mock_preset = MagicMock()
+        mock_get_preset.return_value = mock_preset
+
+        mock_agent = MagicMock()
+        mock_agent_cls.return_value = mock_agent
+
+        mock_server = MagicMock()
+        mock_server_cls.return_value = mock_server
+
+        run_rpc("claude-opus-4.6", "coding", session_id="sess1")
+
+        # Provider created
+        mock_provider_cls.assert_called_once()
+        # Agent created with provider, preset, and session_id
+        mock_agent_cls.assert_called_once()
+        agent_kwargs = mock_agent_cls.call_args
+        assert agent_kwargs.kwargs.get("session_id") == "sess1"
+        # Server wraps agent
+        mock_server_cls.assert_called_once_with(mock_agent)
+        # asyncio.run called with server.run()
+        mock_asyncio.run.assert_called_once_with(mock_server.run())
+
+    @patch("isotope_agents.cli.asyncio")
+    @patch("isotope_agents.cli.RpcServer")
+    @patch("isotope_agents.cli.IsotopeAgent")
+    @patch("isotope_agents.cli.get_preset")
+    @patch("isotope_agents.cli.ProxyProvider")
+    @patch("isotope_agents.cli.load_config")
+    def test_run_rpc_cli_model_overrides_config(
+        self,
+        mock_load_config: MagicMock,
+        mock_provider_cls: MagicMock,
+        mock_get_preset: MagicMock,
+        mock_agent_cls: MagicMock,
+        mock_server_cls: MagicMock,
+        mock_asyncio: MagicMock,
+    ) -> None:
+        """run_rpc uses CLI model when it differs from the default."""
+        mock_config = MagicMock()
+        mock_config.model = "config-model"
+        mock_config.provider.base_url = "http://localhost:4141"
+        mock_config.provider.api_key = None
+        mock_load_config.return_value = mock_config
+
+        run_rpc("claude-sonnet-4-20250514", "coding")
+
+        # The CLI-specified model should be used (it's not DEFAULT_MODEL)
+        provider_call = mock_provider_cls.call_args
+        assert provider_call.kwargs.get("model") == "claude-sonnet-4-20250514"
+
+
+class TestListSessionsEdgeCases:
+    """Additional edge-case tests for list_sessions."""
+
+    @patch("isotope_agents.cli.SessionStore")
+    def test_long_preview_is_truncated(self, mock_store_cls: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
+        """Session with long last_message_preview gets truncated with ellipsis."""
+        long_preview = "a" * 60
+        mock_store = MagicMock()
+        mock_store_cls.return_value = mock_store
+        mock_store.list_sessions.return_value = [
+            SessionMeta("id1", "2026-03-26T00:00:00Z", 1, long_preview, "m", "p"),
+        ]
+
+        list_sessions(10)
+
+        captured = capsys.readouterr()
+        # The code truncates at 40 chars and appends "..."
+        assert "..." in captured.out
+        assert "a" * 40 in captured.out
+
+    @patch("isotope_agents.cli.SessionStore")
+    def test_session_store_exception_exits(self, mock_store_cls: MagicMock) -> None:
+        """list_sessions exits with 1 when SessionStore raises."""
+        mock_store = MagicMock()
+        mock_store_cls.return_value = mock_store
+        mock_store.list_sessions.side_effect = RuntimeError("disk full")
+
+        with pytest.raises(SystemExit) as exc_info:
+            list_sessions(10)
+        assert exc_info.value.code == 1
 
 
 class TestCLIIntegration:
