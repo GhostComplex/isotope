@@ -76,6 +76,7 @@ class TUI:
         self._steer_text: str | None = None  # set by input reader on steer
         self._input_handler = StreamInputHandler()
         self.resume_session_id: str | None = None  # session to resume
+        self._streamed_text: bool = False  # tracks if text deltas were emitted
 
     # -- convenience accessors for state fields used throughout the class ----
 
@@ -199,6 +200,7 @@ class TUI:
     ) -> None:
         """Apply a single EventAction to the display."""
         if action.type == "text":
+            self._streamed_text = True
             if buf:
                 buf.write(action.content)
             else:
@@ -217,9 +219,12 @@ class TUI:
             render_tool_output(action.tool_name, action.content, action.is_error)
 
         elif action.type == "message_end":
-            if buf:
-                buf.flush()
-            render_markdown(action.content)
+            # Skip markdown re-render when text was already streamed via
+            # deltas — otherwise the response text is printed twice.
+            if not self._streamed_text:
+                if buf:
+                    buf.flush()
+                render_markdown(action.content)
 
         elif action.type == "usage":
             self.total_input_tokens += action.input_tokens
@@ -502,6 +507,7 @@ class TUI:
             while True:
                 self._is_streaming = True
                 self._steer_text = None
+                self._streamed_text = False
                 trailing_text = ""
 
                 # Hold a reference to the generator for explicit lifecycle control.
@@ -566,6 +572,18 @@ class TUI:
         _print(f"Proxy: {PROXY_BASE_URL}", style="dim")
         _print(f"Workspace: {WORKSPACE}", style="dim")
 
+        # Install a SIGINT handler so Ctrl+C cleanly exits the event loop
+        # instead of producing a raw KeyboardInterrupt traceback.
+        import signal
+
+        loop = asyncio.get_event_loop()
+        quit_event = asyncio.Event()
+
+        def _sigint_handler() -> None:
+            quit_event.set()
+
+        loop.add_signal_handler(signal.SIGINT, _sigint_handler)
+
         # Fetch and select model
         models = await _fetch_models(PROXY_BASE_URL)
         self.model = await self._select_model(models)
@@ -591,20 +609,45 @@ class TUI:
 
         _print("\nType your message (or /help for commands). Ctrl+C to quit.\n", style="dim")
 
-        while True:
+        while not quit_event.is_set():
             try:
+                # Race the user input prompt against the quit event so that
+                # Ctrl+C (which sets quit_event via the SIGINT handler) can
+                # interrupt a blocking prompt_toolkit prompt_async() call.
                 if self._input_handler.has_prompt_toolkit:
                     _print("─" * 50, style="white")
-                    line = await self._input_handler.get_user_input(
+                    input_coro = self._input_handler.get_user_input(
                         "<style fg='#5599ff'><b>› </b></style>"
                     )
-                    self._input_handler.clear_prefill_text()
                 else:
                     _print_inline("> ", style="user")
-                    line = await self._input_handler.get_user_input("")
+                    input_coro = self._input_handler.get_user_input("")
+
+                input_task = asyncio.create_task(input_coro)
+                quit_task = asyncio.create_task(quit_event.wait())
+
+                done, pending = await asyncio.wait(
+                    {input_task, quit_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                for task in pending:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+                if quit_task in done:
+                    # Ctrl+C fired — exit cleanly
+                    break
+
+                line = input_task.result()
+                if self._input_handler.has_prompt_toolkit:
+                    self._input_handler.clear_prefill_text()
+
             except (EOFError, KeyboardInterrupt):
-                print()
-                _print("Bye!", style="info")
+                break
+
+            if quit_event.is_set():
                 break
 
             line = line.strip()
@@ -618,6 +661,15 @@ class TUI:
                 continue
 
             await self._send_message(line)
+
+        print()
+        _print("Bye!", style="info")
+
+        # Force-exit the process. prompt_toolkit's internal input reader
+        # thread blocks on stdin.read() and survives task cancellation,
+        # preventing asyncio.run() from completing cleanly. os._exit()
+        # terminates at the OS level, bypassing the stuck thread.
+        os._exit(0)
 
 
 # ---------------------------------------------------------------------------

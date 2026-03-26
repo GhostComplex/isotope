@@ -343,6 +343,50 @@ class TestErrorHandling:
         assert lines[0]["command_id"] == "err-1"
 
     @pytest.mark.asyncio
+    async def test_error_preserves_integer_command_id(self) -> None:
+        """ErrorRpcEvent preserves integer command_id (P0 fix)."""
+        mock_agent = _make_mock_agent()
+        output = io.StringIO()
+        server = RpcServer(mock_agent, output_stream=output)
+
+        # Standard JSON-RPC uses integer id — this used to crash with
+        # a Pydantic ValidationError on the command_id field.
+        cmd_line = json.dumps({"type": "explode", "id": 42})
+        inp = io.StringIO(cmd_line + "\n")
+        server._input = inp
+
+        await server.run()
+
+        lines = _output_lines(output)
+        assert lines[0]["type"] == "error"
+        assert lines[0]["command_id"] == 42
+
+    @pytest.mark.asyncio
+    async def test_prompt_with_integer_id(self) -> None:
+        """Prompt command with integer id does not crash (P0 fix)."""
+        mock_agent = _make_mock_agent()
+
+        async def mock_run(message: str, **kwargs: object):  # type: ignore[no-untyped-def]
+            return
+            yield  # make it an async generator  # noqa: RUF027
+
+        mock_agent.run = mock_run
+
+        output = io.StringIO()
+        server = RpcServer(mock_agent, output_stream=output)
+
+        cmd_line = json.dumps({"type": "prompt", "id": 7, "content": "Hi"})
+        inp = io.StringIO(cmd_line + "\n")
+        server._input = inp
+
+        await server.run()
+
+        lines = _output_lines(output)
+        types = [ev["type"] for ev in lines]
+        assert "agent_start" in types
+        assert "agent_end" in types
+
+    @pytest.mark.asyncio
     async def test_handler_exception_emits_error(self) -> None:
         """Exception in a handler emits ErrorRpcEvent."""
         mock_agent = _make_mock_agent()
