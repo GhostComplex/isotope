@@ -91,9 +91,17 @@ class TUI:
     def preset(self) -> object:
         return self._state.preset
 
+    @preset.setter
+    def preset(self, value: object) -> None:
+        self._state.preset = value
+
     @property
     def tools_enabled(self) -> bool:
         return self._state.tools_enabled
+
+    @tools_enabled.setter
+    def tools_enabled(self, value: bool) -> None:
+        self._state.tools_enabled = value
 
     @property
     def debug(self) -> bool:
