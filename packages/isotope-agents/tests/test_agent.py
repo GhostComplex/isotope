@@ -212,8 +212,8 @@ class TestIsotopeAgent:
                 session_store=session_store,
             )
 
-            # Mock the core agent's run method
-            agent.core.run = mock_run
+            # Mock the core agent's prompt method
+            agent.core.prompt = mock_run
 
             # Run the agent (this should log the user message and assistant response)
             events = []
@@ -348,7 +348,7 @@ class TestIsotopeAgent:
         async def mock_run(*args, **kwargs):
             yield mock_event
 
-        agent.core.run = mock_run
+        agent.core.prompt = mock_run
 
         # Patch compact to track the call
         with patch.object(agent, "compact", return_value=mock_compact_result) as mock_compact:
@@ -391,7 +391,7 @@ class TestIsotopeAgent:
         async def mock_run(*args, **kwargs):
             yield mock_event
 
-        agent.core.run = mock_run
+        agent.core.prompt = mock_run
 
         with patch.object(agent, "compact") as mock_compact:
             events = []

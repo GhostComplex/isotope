@@ -184,11 +184,8 @@ class IsotopeAgent:
             self._session_store.append(self._session_id, entry)
 
         # Get the original event stream
-        original_stream = self._agent.run(
-            messages=[UserMessage(
-                content=[TextContent(text=message)],
-                timestamp=1000,
-            )],
+        original_stream = self._agent.prompt(
+            text=message,
             **kwargs,
         )
 
