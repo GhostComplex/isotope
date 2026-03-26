@@ -305,3 +305,47 @@ class TestParseCommand:
         cmd = parse_command(line)
         assert isinstance(cmd, PromptCommand)
         assert cmd.images == ["base64data1", "base64data2"]
+
+    def test_parse_command_integer_id(self) -> None:
+        """parse_command accepts integer id (standard JSON-RPC convention)."""
+        cmd = parse_command('{"type": "prompt", "id": 42, "content": "Hi"}')
+        assert isinstance(cmd, PromptCommand)
+        assert cmd.id == 42
+        assert cmd.content == "Hi"
+
+    def test_parse_command_integer_id_on_abort(self) -> None:
+        """parse_command accepts integer id on commands without content."""
+        cmd = parse_command('{"type": "abort", "id": 1}')
+        assert isinstance(cmd, AbortCommand)
+        assert cmd.id == 1
+
+
+class TestIntegerIdSupport:
+    """Tests for integer id support in commands and events (P0 fix)."""
+
+    def test_command_with_integer_id(self) -> None:
+        """RpcCommand accepts integer id."""
+        cmd = PromptCommand(id=42, content="Hello")
+        assert cmd.id == 42
+
+    def test_command_with_string_id(self) -> None:
+        """RpcCommand still accepts string id."""
+        cmd = PromptCommand(id="abc", content="Hello")
+        assert cmd.id == "abc"
+
+    def test_command_with_none_id(self) -> None:
+        """RpcCommand still accepts None id."""
+        cmd = PromptCommand(content="Hello")
+        assert cmd.id is None
+
+    def test_error_event_with_integer_command_id(self) -> None:
+        """ErrorRpcEvent accepts integer command_id."""
+        evt = ErrorRpcEvent(message="fail", command_id=42)
+        assert evt.command_id == 42
+
+    def test_error_event_integer_roundtrip(self) -> None:
+        """ErrorRpcEvent with integer command_id survives JSON roundtrip."""
+        evt = ErrorRpcEvent(message="fail", command_id=99)
+        data = json.loads(evt.model_dump_json())
+        restored = ErrorRpcEvent.model_validate(data)
+        assert restored.command_id == 99

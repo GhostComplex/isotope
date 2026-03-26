@@ -156,7 +156,7 @@ class RpcServer:
 
     async def _handle_prompt(self, cmd: PromptCommand) -> None:
         """Run the agent with a user prompt, streaming events to stdout."""
-        stream_id = cmd.id or str(uuid.uuid4())[:8]
+        stream_id = str(cmd.id) if cmd.id is not None else str(uuid.uuid4())[:8]
 
         self._emit(AgentStartRpcEvent(stream_id=stream_id))
 
@@ -219,7 +219,7 @@ class RpcServer:
                 model=self.agent._model or "unknown",
                 preset=self.agent.preset.name,
                 session_id=self.agent.session_id or "",
-                stream_id=cmd.id,
+                stream_id=str(cmd.id) if cmd.id is not None else None,
             )
         )
 
@@ -260,12 +260,14 @@ class RpcServer:
 # ------------------------------------------------------------------
 
 
-def _extract_id(line: str) -> str | None:
+def _extract_id(line: str) -> str | int | None:
     """Best-effort extraction of ``id`` from a raw JSON line."""
     try:
         data = json.loads(line)
         if isinstance(data, dict):
-            return data.get("id")
+            raw_id = data.get("id")
+            if isinstance(raw_id, (str, int)):
+                return raw_id
     except (json.JSONDecodeError, TypeError):
         pass
     return None

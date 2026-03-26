@@ -20,7 +20,7 @@ from pydantic import BaseModel
 class RpcCommand(BaseModel):
     """Base class for all RPC commands sent to the agent."""
 
-    id: str | None = None
+    id: str | int | None = None
     type: str
 
 
@@ -152,7 +152,7 @@ class ErrorRpcEvent(RpcEvent):
 
     type: Literal["error"] = "error"
     message: str
-    command_id: str | None = None
+    command_id: str | int | None = None
 
 
 # =============================================================================
