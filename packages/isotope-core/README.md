@@ -4,11 +4,32 @@ Core primitives for building AI agent loops. Provides the engine that powers iso
 
 ## Installation
 
+### From PyPI
+
 ```bash
+# uv
+uv add isotope-core
+uv add 'isotope-core[openai]'
+uv add 'isotope-core[anthropic]'
+uv add 'isotope-core[all]'
+
+# pip
 pip install isotope-core              # core only (pydantic)
 pip install isotope-core[openai]      # + OpenAI provider
 pip install isotope-core[anthropic]   # + Anthropic provider
 pip install isotope-core[all]         # all providers + tiktoken
+```
+
+### From Source (monorepo)
+
+```bash
+# Sync just isotope-core into the workspace environment
+uv sync --package isotope-core
+
+# Include optional provider extras
+uv sync --package isotope-core --extra openai
+uv sync --package isotope-core --extra anthropic
+uv sync --package isotope-core --extra all
 ```
 
 ## API Overview

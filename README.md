@@ -33,30 +33,44 @@ Isotope is a monorepo with two packages:
 ## Quick Start
 
 ```bash
-# Install with all extras
-pip install isotope-agents[all]
+# Install uv (if not already)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Launch interactive chat
-isotope chat
+# Run directly without installing (uses uvx)
+uvx --from 'isotope-agents[tui]' isotope chat
+uvx --from 'isotope-agents[tui]' isotope run "Explain this codebase"
+```
+
+### From Source (Development)
+
+```bash
+git clone https://github.com/GhostComplex/isotope.git
+cd isotope
+
+# Sync with TUI support
+uv sync --package isotope-agents --extra tui
+
+# Launch interactive TUI
+uv run isotope --model claude-opus-4.6 --preset coding chat
 
 # Run a one-shot prompt
-isotope run "Explain this codebase"
+uv run isotope run "Explain this codebase"
 
-# Start RPC server for embedding
-isotope rpc
+# Start RPC server
+uv run isotope rpc
 ```
+
+#### Available Extras
+
+| Extra | Install | What it adds |
+|-------|---------|--------------|
+| `tui` | `uv sync --package isotope-agents --extra tui` | Interactive TUI (Rich + prompt-toolkit) |
+| `mcp` | `uv sync --package isotope-agents --extra mcp` | MCP server integration |
+| `all` | `uv sync --package isotope-agents --extra all` | Everything above |
 
 ## Development
 
 ```bash
-# Install uv (if not already)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Clone and set up
-git clone https://github.com/GhostComplex/isotope.git
-cd isotope
-uv sync
-
 # Run all tests
 uv run pytest packages/isotope-core/tests/ -q
 uv run pytest packages/isotope-agents/tests/ -q
@@ -67,6 +81,22 @@ uv run ruff check packages/
 # Type check
 uv run mypy packages/isotope-core/src/
 ```
+
+### Publishing to PyPI
+
+Packages are published individually. `isotope-core` must be published before `isotope-agents` (since it depends on it).
+
+```bash
+# Build and publish isotope-core
+uv build --package isotope-core
+uv publish dist/isotope_core-*.tar.gz dist/isotope_core-*.whl
+
+# Build and publish isotope-agents
+uv build --package isotope-agents
+uv publish dist/isotope_agents-*.tar.gz dist/isotope_agents-*.whl
+```
+
+Set your PyPI token via `UV_PUBLISH_TOKEN` or pass `--token` to `uv publish`.
 
 ## Configuration
 

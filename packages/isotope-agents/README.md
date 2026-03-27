@@ -2,20 +2,46 @@
 
 Agent framework built on [isotope-core](../isotope-core/) — provides tools, a TUI, CLI, session persistence, RPC protocol, presets, skills, and MCP integration.
 
+## Installation
+
+### From PyPI
+
+```bash
+# uv
+uv add isotope-agents
+uv add 'isotope-agents[tui]'
+uv add 'isotope-agents[mcp]'
+uv add 'isotope-agents[all]'
+
+# pip
+pip install isotope-agents
+pip install 'isotope-agents[tui]'
+pip install 'isotope-agents[mcp]'
+pip install 'isotope-agents[all]'
+```
+
 ## Quick Start
 
 ```bash
-# Install with all extras
-pip install isotope-agents[all]
-
-# Launch interactive chat
-isotope chat
-
-# Run a one-shot prompt
-isotope run "Explain this project"
+# Run directly without installing (uses uvx)
+uvx --from 'isotope-agents[tui]' isotope chat
+uvx --from 'isotope-agents[tui]' isotope run "Explain this project"
 
 # List saved sessions
-isotope sessions
+uvx --from isotope-agents isotope sessions
+```
+
+### From Source (monorepo)
+
+```bash
+# Sync with TUI support
+uv sync --package isotope-agents --extra tui
+
+# Launch interactive TUI
+uv run isotope --model claude-opus-4.6 --preset coding chat
+
+# One-shot prompt
+uv run isotope run "Explain this project"
 ```
 
 ## CLI Commands
@@ -63,8 +89,8 @@ Presets define which tools and system prompt the agent uses.
 | `bash` | Run shell commands |
 | `grep` | Search file contents with regex patterns |
 | `glob_tool` | Discover files by glob patterns |
-| `web_search` | Search the web (requires `isotope-agents[search]`) |
-| `web_fetch` | Fetch and read content from a URL (requires `isotope-agents[search]`) |
+| `web_search` | Search the web |
+| `web_fetch` | Fetch and read content from a URL |
 
 ## Configuration
 
@@ -137,7 +163,7 @@ mcp:
       url: http://localhost:3001/sse
 ```
 
-Requires the `mcp` extra: `pip install isotope-agents[mcp]`
+Requires the `mcp` extra: `uv add 'isotope-agents[mcp]'` or `pip install 'isotope-agents[mcp]'`
 
 ## RPC Protocol
 
@@ -203,7 +229,6 @@ Session entries include: `session_start`, `user_message`, `assistant_message`, `
 | Extra | Dependency | Enables |
 |-------|-----------|---------|
 | `tui` | prompt-toolkit, rich | Interactive TUI (`isotope chat`) |
-| `search` | httpx | Web search and fetch tools |
 | `mcp` | mcp | MCP server integration |
 | `all` | all of the above | Everything |
 
