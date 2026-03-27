@@ -230,6 +230,10 @@ def launch_tui(model: str, preset: str, no_tools: bool, session_id: str | None =
         asyncio.run(tui.run())
 
     except KeyboardInterrupt:
+        # Safety net — the asyncio SIGINT handler in TUI.run() should
+        # handle Ctrl+C cleanly via os._exit(0), but catch it here too
+        # in case it escapes (e.g., during model selection before the
+        # handler is installed).
         print("\nBye!")
         sys.exit(0)
     except ImportError as e:

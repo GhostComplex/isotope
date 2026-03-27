@@ -239,6 +239,7 @@ class StreamInputHandler:
             return await self._prompt_session.prompt_async(
                 HTML(prompt),
                 default=default or self._prefill_text,
+                handle_sigint=False,
             )
         else:
             print(prompt, end="", flush=True)

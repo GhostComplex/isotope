@@ -585,17 +585,23 @@ class TUI:
         _print(f"Proxy: {PROXY_BASE_URL}", style="dim")
         _print(f"Workspace: {WORKSPACE}", style="dim")
 
-        # Install a SIGINT handler so Ctrl+C cleanly exits the event loop
-        # instead of producing a raw KeyboardInterrupt traceback.
+        # Install a process-level SIGINT handler so Ctrl+C sets quit_event
+        # instead of raising KeyboardInterrupt.  We use signal.signal()
+        # rather than loop.add_signal_handler() because prompt_toolkit may
+        # override the asyncio handler via its own signal.signal() call.
+        # A process-level handler prevents KeyboardInterrupt entirely —
+        # no traceback, no exception, just a clean event-driven exit.
         import signal
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         quit_event = asyncio.Event()
 
-        def _sigint_handler() -> None:
-            quit_event.set()
+        def _sigint_handler(signum: int, frame: object) -> None:
+            # Use call_soon_threadsafe to safely set the event from a
+            # signal handler context, ensuring the event loop notices.
+            loop.call_soon_threadsafe(quit_event.set)
 
-        loop.add_signal_handler(signal.SIGINT, _sigint_handler)
+        signal.signal(signal.SIGINT, _sigint_handler)
 
         # Fetch and select model
         models = await _fetch_models(PROXY_BASE_URL)
@@ -646,8 +652,16 @@ class TUI:
 
                 for task in pending:
                     task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
+                    with contextlib.suppress(asyncio.CancelledError, KeyboardInterrupt):
                         await task
+
+                # Also retrieve exceptions from done tasks to suppress
+                # "Task exception was never retrieved" warnings when
+                # KeyboardInterrupt lands inside prompt_async().
+                for task in done:
+                    if task is not quit_task and task.done() and not task.cancelled():
+                        with contextlib.suppress(BaseException):
+                            task.result()
 
                 if quit_task in done:
                     # Ctrl+C fired — exit cleanly
