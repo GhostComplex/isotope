@@ -177,6 +177,17 @@ Print a one-line notice: `Using Anthropic (from ANTHROPIC_API_KEY). Run 'isotope
 - OAuth flows (future)
 - Model validation against provider catalogs (future)
 
+## Future: Agent Identity & Self-Evolving Prompts
+
+`~/.isotope/agent.md` currently stores a static custom system prompt. Future milestones could evolve this into a full agent identity system:
+
+- **System prompt creator** — an agent-assisted wizard that generates a tailored `agent.md` based on user preferences, use case, and persona
+- **Soul + Memory pattern** — extend `agent.md` with sections for personality (soul), accumulated learnings (memory), and user context
+- **Self-growing prompts** — allow the agent to append learnings, refine its persona, and accumulate context over sessions (similar to OpenClaw's `SOUL.md` + `MEMORY.md` pattern)
+- **Version control** — since it's a file, users can git-track their agent's evolution
+
+The file-based approach (vs JSON field) is intentional — it's human-editable, agent-writable, and composable.
+
 ## Open Questions
 
 1. Should `settings.json` support comments (JSONC)? Probably not — keep it simple.
