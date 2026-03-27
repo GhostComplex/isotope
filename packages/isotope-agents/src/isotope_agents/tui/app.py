@@ -400,6 +400,10 @@ class TUI:
         """
         if new_config is not None:
             self.config = new_config
+            # Sync model from config when a full config swap happens
+            # (e.g. /setup provider change) and no explicit new_model given.
+            if new_model is None and new_config.model and new_config.model != "default":
+                new_model = new_config.model
         if new_model is not None:
             self.model = new_model
             self._state.model = new_model
