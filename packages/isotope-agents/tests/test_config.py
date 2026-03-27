@@ -14,7 +14,9 @@ from isotope_agents.config import (
     create_provider,
     detect_provider_from_env,
     fetch_available_models,
+    load_agent_md,
     load_config,
+    save_agent_md,
     save_config,
 )
 
@@ -298,32 +300,49 @@ class TestSaveConfig:
         save_config(IsotopeConfig(), cfg_path)
         assert cfg_path.exists()
 
-    def test_system_prompt_roundtrip(self, tmp_path: Path) -> None:
-        """system_prompt survives save/load roundtrip."""
+    def test_system_prompt_mode_roundtrip(self, tmp_path: Path) -> None:
+        """system_prompt mode survives save/load roundtrip."""
         cfg_path = tmp_path / "settings.json"
-        config = IsotopeConfig(system_prompt="You are a helpful coding assistant.")
+        config = IsotopeConfig(system_prompt="custom")
         save_config(config, cfg_path)
         loaded = load_config(cfg_path)
-        assert loaded.system_prompt == "You are a helpful coding assistant."
+        assert loaded.system_prompt == "custom"
 
-    def test_system_prompt_empty_string_roundtrip(self, tmp_path: Path) -> None:
-        """Empty string system_prompt (skip) persists correctly."""
+    def test_system_prompt_default_mode(self, tmp_path: Path) -> None:
+        """'default' mode persists correctly."""
         cfg_path = tmp_path / "settings.json"
-        config = IsotopeConfig(system_prompt="")
+        config = IsotopeConfig(system_prompt="default")
         save_config(config, cfg_path)
         loaded = load_config(cfg_path)
-        assert loaded.system_prompt == ""
+        assert loaded.system_prompt == "default"
 
-    def test_system_prompt_none_not_saved(self, tmp_path: Path) -> None:
-        """None system_prompt is not written to JSON."""
+    def test_system_prompt_invalid_mode_normalizes(self, tmp_path: Path) -> None:
+        """Invalid system_prompt mode normalizes to 'none'."""
         cfg_path = tmp_path / "settings.json"
-        config = IsotopeConfig(system_prompt=None)
-        save_config(config, cfg_path)
-        with open(cfg_path) as f:
-            data = json.load(f)
-        assert "system_prompt" not in data
+        cfg_path.write_text(json.dumps({"system_prompt": "invalid_value"}))
         loaded = load_config(cfg_path)
-        assert loaded.system_prompt is None
+        assert loaded.system_prompt == "none"
+
+
+class TestAgentMd:
+    """Tests for agent.md read/write."""
+
+    def test_save_and_load_roundtrip(self, tmp_path: Path) -> None:
+        """agent.md content survives roundtrip."""
+        md_path = tmp_path / "agent.md"
+        save_agent_md("You are a helpful coding assistant.", md_path)
+        assert load_agent_md(md_path) == "You are a helpful coding assistant."
+
+    def test_load_missing_returns_empty(self, tmp_path: Path) -> None:
+        """Missing agent.md returns empty string."""
+        assert load_agent_md(tmp_path / "nonexistent.md") == ""
+
+    def test_save_creates_parent_dirs(self, tmp_path: Path) -> None:
+        """save_agent_md creates parent directories."""
+        md_path = tmp_path / "deep" / "agent.md"
+        save_agent_md("test prompt", md_path)
+        assert md_path.exists()
+        assert load_agent_md(md_path) == "test prompt"
 
 
 class TestYamlMigration:

@@ -24,6 +24,8 @@ from isotope_agents.config import (
     IsotopeConfig,
     create_provider,
     fetch_available_models,
+    load_agent_md,
+    save_agent_md,
     save_config,
 )
 from isotope_agents.presets import CODING
@@ -679,8 +681,13 @@ class TUI:
             style="info",
         )
         sys_prompt_input = await self._input_handler.get_user_input("System prompt: ")
-        sys_prompt = sys_prompt_input.strip()
-        # "" means explicitly skipped → use preset; stored as "" in config
+        sys_prompt_text = sys_prompt_input.strip()
+
+        if sys_prompt_text:
+            prompt_mode = "custom"
+            save_agent_md(sys_prompt_text)
+        else:
+            prompt_mode = "default"
 
         # Build and save config
         from isotope_agents.config import ProviderConfig
@@ -692,7 +699,7 @@ class TUI:
                 api_key=api_key,
             ),
             model=model,
-            system_prompt=sys_prompt,  # "" = use preset default
+            system_prompt=prompt_mode,
         )
         save_config(config)
         _print("\n✓ Saved to ~/.isotope/settings.json\n", style="info")
@@ -728,19 +735,25 @@ class TUI:
         _print(f"Model: {self.model}", style="model")
         _print(f"Workspace: {WORKSPACE}", style="dim")
 
-        # System prompt resolution:
-        # - FRE just ran → system_prompt already in self.config (may be "")
-        # - Config loaded from file with system_prompt set → use it, skip asking
-        # - Config has system_prompt=None → first time without FRE, ask user
-        if self.config.system_prompt is not None:
-            # Already configured (from FRE or saved config)
-            if self.config.system_prompt:
-                self.custom_system_prompt = self.config.system_prompt
-                _print(f"System prompt: {self.custom_system_prompt}", style="dim")
+        # System prompt resolution based on mode:
+        # - "none"    → not yet configured, ask user
+        # - "default" → use preset system prompt, skip asking
+        # - "custom"  → load from ~/.isotope/agent.md
+        sp_mode = self.config.system_prompt
+        if sp_mode == "custom":
+            agent_md = load_agent_md()
+            if agent_md:
+                self.custom_system_prompt = agent_md
+                _print("System prompt: loaded from ~/.isotope/agent.md", style="dim")
             else:
-                _print(f"Using {self.preset.name} preset system prompt", style="dim")
+                _print(
+                    f"Using {self.preset.name} preset (agent.md empty)",
+                    style="dim",
+                )
+        elif sp_mode == "default":
+            _print(f"Using {self.preset.name} preset system prompt", style="dim")
         else:
-            # Not yet configured — ask (e.g. env-var detected, no settings.json)
+            # "none" — not yet configured, ask user
             custom_prompt = await self._get_system_prompt()
             if custom_prompt:
                 self.custom_system_prompt = custom_prompt

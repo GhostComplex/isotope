@@ -85,7 +85,7 @@ class IsotopeConfig:
 
     model: str = "default"
     preset: str = "coding"
-    system_prompt: str | None = None  # None = not yet configured (ask on first run)
+    system_prompt: str = "none"  # "none" | "default" | "custom"
     debug: bool = False
     sessions_dir: str = "~/.isotope/sessions"
     skills: list[str] = field(default_factory=lambda: ["~/.isotope/skills/"])
@@ -169,9 +169,11 @@ def _parse_config(raw: dict[str, Any]) -> IsotopeConfig:
                     )
                 )
 
-    # system_prompt: None = not configured yet, "" = explicitly empty (use preset)
-    sp_raw = raw.get("system_prompt")
-    system_prompt: str | None = str(sp_raw) if sp_raw is not None else None
+    # system_prompt mode: "none" | "default" | "custom"
+    sp_raw = raw.get("system_prompt", "none")
+    system_prompt = str(sp_raw) if sp_raw is not None else "none"
+    if system_prompt not in ("none", "default", "custom"):
+        system_prompt = "none"
 
     return IsotopeConfig(
         model=str(raw.get("model", "default")),
@@ -607,9 +609,8 @@ def save_config(config: IsotopeConfig, path: Path | None = None) -> None:
         "sessions_dir": config.sessions_dir,
     }
 
-    # system_prompt: None = not yet configured, "" = explicitly empty (use preset)
-    if config.system_prompt is not None:
-        data["system_prompt"] = config.system_prompt
+    # system_prompt mode is always saved
+    data["system_prompt"] = config.system_prompt
 
     if config.skills != ["~/.isotope/skills/"]:
         data["skills"] = config.skills
@@ -632,3 +633,27 @@ def save_config(config: IsotopeConfig, path: Path | None = None) -> None:
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
+
+
+_DEFAULT_AGENT_MD_PATH = Path.home() / ".isotope" / "agent.md"
+
+
+def load_agent_md(path: Path | None = None) -> str:
+    """Load custom system prompt from agent.md.
+
+    Returns the file contents, or empty string if not found.
+    """
+    if path is None:
+        path = _DEFAULT_AGENT_MD_PATH
+    try:
+        return path.read_text().strip()
+    except (OSError, FileNotFoundError):
+        return ""
+
+
+def save_agent_md(content: str, path: Path | None = None) -> None:
+    """Save custom system prompt to agent.md."""
+    if path is None:
+        path = _DEFAULT_AGENT_MD_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content.strip() + "\n")
