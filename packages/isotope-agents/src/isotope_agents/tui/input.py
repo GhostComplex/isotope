@@ -238,10 +238,19 @@ class StreamInputHandler:
 
         if HAS_PROMPT_TOOLKIT and self._prompt_session is not None:
             from prompt_toolkit.formatted_text import HTML
+            from prompt_toolkit.key_binding import KeyBindings
+
+            # Custom Ctrl+C binding: clear buffer instead of aborting.
+            bindings = KeyBindings()
+
+            @bindings.add("c-c")
+            def _clear_input(event: Any) -> None:
+                event.current_buffer.reset()
 
             return await self._prompt_session.prompt_async(
                 HTML(prompt),
                 default=default or self._prefill_text,
+                key_bindings=bindings,
             )
         else:
             print(prompt, end="", flush=True)
