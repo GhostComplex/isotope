@@ -290,13 +290,15 @@ async def fetch_available_models(
     provider_type: str = "proxy",
     *,
     timeout: float = 8.0,
+    max_models: int = 20,
 ) -> list[str]:
     """Fetch available models from a provider's API.
 
     For OpenAI-compatible APIs: GET {base_url}/models
     For Anthropic: GET https://api.anthropic.com/v1/models
 
-    Returns a sorted list of model IDs, or the fallback list on failure.
+    Returns a deduplicated, filtered, ranked list of model IDs (capped at
+    *max_models*), or the fallback list on failure.
     """
     import asyncio
     import urllib.error
@@ -321,23 +323,88 @@ async def fetch_available_models(
         if not isinstance(data, dict) or "data" not in data:
             return fallback or []
 
-        models: list[str] = []
+        raw_ids: list[str] = []
         for m in data["data"]:
             model_id = m.get("id", "")
-            if model_id:
-                models.append(model_id)
+            if not model_id:
+                continue
+            raw_ids.append(model_id)
 
-        if not models:
+        if not raw_ids:
             return fallback or []
 
-        models.sort()
-        return models
+        return _filter_and_rank(raw_ids, max_models)
 
     try:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, _do_fetch)
     except Exception:
         return fallback or []
+
+
+# Prefixes that indicate non-chat models (embeddings, moderation, tts, etc.)
+_NON_CHAT_PREFIXES = (
+    "text-embedding",
+    "embedding",
+    "text-moderation",
+    "moderation",
+    "tts-",
+    "whisper",
+    "dall-e",
+    "davinci",
+    "babbage",
+    "curie",
+    "ada",
+)
+
+# Date suffix pattern: -YYYYMMDD or -YYYY-MM-DD at end of model ID
+_DATE_SUFFIX_RE = re.compile(r"-\d{4}-?\d{2}-?\d{2}$")
+
+
+def _filter_and_rank(raw_ids: list[str], max_models: int) -> list[str]:
+    """Deduplicate, filter non-chat models, and rank for display.
+
+    Ranking prefers models *without* date suffixes (canonical names)
+    and sorts alphabetically within each tier.
+    """
+    # Deduplicate preserving first occurrence order
+    seen: set[str] = set()
+    unique: list[str] = []
+    for mid in raw_ids:
+        if mid not in seen:
+            seen.add(mid)
+            unique.append(mid)
+
+    # Filter out non-chat models
+    chat_models: list[str] = []
+    for mid in unique:
+        lower = mid.lower()
+        if any(lower.startswith(p) for p in _NON_CHAT_PREFIXES):
+            continue
+        chat_models.append(mid)
+
+    if not chat_models:
+        return unique[:max_models]  # nothing left after filter — return unfiltered
+
+    # Rank: canonical (no date suffix) first, then dated, both sorted
+    canonical: list[str] = []
+    dated: list[str] = []
+    for mid in chat_models:
+        if _DATE_SUFFIX_RE.search(mid):
+            dated.append(mid)
+        else:
+            canonical.append(mid)
+
+    canonical.sort()
+    dated.sort()
+    ranked = canonical + dated
+
+    total = len(ranked)
+    result = ranked[:max_models]
+    if total > max_models:
+        result.append(f"({total - max_models} more — type a model name directly)")
+
+    return result
 
 
 # ---------------------------------------------------------------------------

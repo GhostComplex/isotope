@@ -635,14 +635,23 @@ class TUI:
         )
 
         if models:
+            # Separate hint entry ("N more — type a model name directly")
+            hint_entry = ""
+            if models and models[-1].startswith("("):
+                hint_entry = models.pop()
+
             # Place default model first if present
             if default_model in models:
                 models.remove(default_model)
                 models.insert(0, default_model)
+
             _print("\nAvailable models:", style="info")
             for i, m in enumerate(models, 1):
                 suffix = " (default)" if m == default_model else ""
                 _print(f"  {i}. {m}{suffix}", style="dim")
+            if hint_entry:
+                _print(f"  {hint_entry}", style="dim")
+
             model_choice = await self._input_handler.get_user_input("\nModel [1]: ")
             model_choice = model_choice.strip()
             try:

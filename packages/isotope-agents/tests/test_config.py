@@ -10,6 +10,7 @@ import pytest
 from isotope_agents.config import (
     IsotopeConfig,
     ProviderConfig,
+    _filter_and_rank,
     create_provider,
     detect_provider_from_env,
     fetch_available_models,
@@ -329,6 +330,65 @@ class TestYamlMigration:
         assert data["provider"]["type"] == "proxy"
 
 
+class TestFilterAndRank:
+    """Tests for _filter_and_rank model list processing."""
+
+    def test_filters_embedding_models(self) -> None:
+        """Embedding models are removed."""
+        raw = ["gpt-5.4", "text-embedding-3-large", "text-embedding-ada-002", "o3"]
+        result = _filter_and_rank(raw, max_models=20)
+        assert "gpt-5.4" in result
+        assert "o3" in result
+        assert all("embedding" not in m for m in result)
+
+    def test_filters_non_chat_models(self) -> None:
+        """TTS, whisper, dall-e, moderation models are removed."""
+        raw = ["gpt-5.4", "tts-1", "whisper-1", "dall-e-3", "text-moderation-latest"]
+        result = _filter_and_rank(raw, max_models=20)
+        assert result == ["gpt-5.4"]
+
+    def test_deduplicates(self) -> None:
+        """Duplicate model IDs are removed."""
+        raw = ["gpt-4", "gpt-4", "gpt-5.4", "gpt-5.4"]
+        result = _filter_and_rank(raw, max_models=20)
+        assert result == ["gpt-4", "gpt-5.4"]
+
+    def test_canonical_before_dated(self) -> None:
+        """Models without date suffixes rank before dated ones."""
+        raw = [
+            "claude-sonnet-4.6-20260301",
+            "claude-sonnet-4.6",
+            "claude-opus-4.6-20260301",
+            "claude-opus-4.6",
+        ]
+        result = _filter_and_rank(raw, max_models=20)
+        assert result.index("claude-opus-4.6") < result.index(
+            "claude-opus-4.6-20260301"
+        )
+        assert result.index("claude-sonnet-4.6") < result.index(
+            "claude-sonnet-4.6-20260301"
+        )
+
+    def test_caps_at_max_models(self) -> None:
+        """List is capped and includes overflow hint."""
+        raw = [f"model-{i:02d}" for i in range(30)]
+        result = _filter_and_rank(raw, max_models=10)
+        # 10 models + 1 hint entry
+        assert len(result) == 11
+        assert result[-1].startswith("(20 more")
+
+    def test_empty_input(self) -> None:
+        """Empty input returns empty list."""
+        assert _filter_and_rank([], max_models=20) == []
+
+    def test_all_filtered_returns_unfiltered(self) -> None:
+        """If all models are non-chat, returns unfiltered capped list."""
+        raw = ["text-embedding-1", "text-embedding-2", "text-embedding-3"]
+        result = _filter_and_rank(raw, max_models=20)
+        # Falls back to unfiltered since everything was filtered
+        assert len(result) == 3
+
+
 class TestFetchAvailableModels:
     """Tests for fetch_available_models."""
 
@@ -353,10 +413,10 @@ class TestFetchAvailableModels:
         assert models == []
 
     @pytest.mark.asyncio
-    async def test_parses_openai_response(
+    async def test_parses_filters_and_deduplicates(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Parses standard OpenAI /v1/models response."""
+        """Parses OpenAI response, filters embeddings, deduplicates."""
         import urllib.request
 
         fake_response = json.dumps(
@@ -364,6 +424,8 @@ class TestFetchAvailableModels:
                 "data": [
                     {"id": "gpt-5.4"},
                     {"id": "gpt-5.2"},
+                    {"id": "gpt-5.4"},  # duplicate
+                    {"id": "text-embedding-3-large"},  # non-chat
                     {"id": "gpt-4.1"},
                 ]
             }
@@ -389,6 +451,8 @@ class TestFetchAvailableModels:
         assert "gpt-5.4" in models
         assert "gpt-5.2" in models
         assert "gpt-4.1" in models
+        assert "text-embedding-3-large" not in models
+        assert models.count("gpt-5.4") == 1
 
     @pytest.mark.asyncio
     async def test_empty_data_returns_fallback(
