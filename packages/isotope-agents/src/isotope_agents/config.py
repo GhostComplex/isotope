@@ -263,6 +263,84 @@ def detect_provider_from_env() -> IsotopeConfig | None:
 
 
 # ---------------------------------------------------------------------------
+# Dynamic model listing
+# ---------------------------------------------------------------------------
+
+# Fallback model lists when API fetch fails
+_FALLBACK_MODELS: dict[str, list[str]] = {
+    "anthropic": [
+        "claude-sonnet-4.6-20260301",
+        "claude-opus-4.6-20260301",
+        "claude-haiku-4.5-20241022",
+    ],
+    "openai": [
+        "gpt-5.4",
+        "gpt-5.2",
+        "o3",
+    ],
+    "minimax": ["MiniMax-M2.7"],
+    "minimax-global": ["MiniMax-M2.7"],
+    "proxy": [],
+}
+
+
+async def fetch_available_models(
+    base_url: str,
+    api_key: str = "",
+    provider_type: str = "proxy",
+    *,
+    timeout: float = 8.0,
+) -> list[str]:
+    """Fetch available models from a provider's API.
+
+    For OpenAI-compatible APIs: GET {base_url}/models
+    For Anthropic: GET https://api.anthropic.com/v1/models
+
+    Returns a sorted list of model IDs, or the fallback list on failure.
+    """
+    import asyncio
+    import urllib.error
+    import urllib.request
+
+    fallback = _FALLBACK_MODELS.get(provider_type, [])
+
+    def _do_fetch() -> list[str]:
+        url = base_url.rstrip("/") + "/models"
+        headers: dict[str, str] = {}
+
+        if provider_type == "anthropic":
+            headers["x-api-key"] = api_key
+            headers["anthropic-version"] = "2023-06-01"
+        elif api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode())
+
+        if not isinstance(data, dict) or "data" not in data:
+            return fallback or []
+
+        models: list[str] = []
+        for m in data["data"]:
+            model_id = m.get("id", "")
+            if model_id:
+                models.append(model_id)
+
+        if not models:
+            return fallback or []
+
+        models.sort()
+        return models
+
+    try:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, _do_fetch)
+    except Exception:
+        return fallback or []
+
+
+# ---------------------------------------------------------------------------
 # Provider factory
 # ---------------------------------------------------------------------------
 

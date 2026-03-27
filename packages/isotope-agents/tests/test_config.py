@@ -12,6 +12,7 @@ from isotope_agents.config import (
     ProviderConfig,
     create_provider,
     detect_provider_from_env,
+    fetch_available_models,
     load_config,
     save_config,
 )
@@ -326,3 +327,93 @@ class TestYamlMigration:
         with open(json_path) as f:
             data = json.load(f)
         assert data["provider"]["type"] == "proxy"
+
+
+class TestFetchAvailableModels:
+    """Tests for fetch_available_models."""
+
+    @pytest.mark.asyncio
+    async def test_returns_fallback_on_network_error(self) -> None:
+        """Returns fallback models when API is unreachable."""
+        models = await fetch_available_models(
+            "http://localhost:1",  # unreachable
+            provider_type="anthropic",
+            timeout=1.0,
+        )
+        assert "claude-sonnet-4.6-20260301" in models
+
+    @pytest.mark.asyncio
+    async def test_returns_fallback_for_unknown_provider(self) -> None:
+        """Unknown provider type returns empty list on failure."""
+        models = await fetch_available_models(
+            "http://localhost:1",
+            provider_type="unknown",
+            timeout=1.0,
+        )
+        assert models == []
+
+    @pytest.mark.asyncio
+    async def test_parses_openai_response(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Parses standard OpenAI /v1/models response."""
+        import urllib.request
+
+        fake_response = json.dumps(
+            {
+                "data": [
+                    {"id": "gpt-5.4"},
+                    {"id": "gpt-5.2"},
+                    {"id": "gpt-4.1"},
+                ]
+            }
+        ).encode()
+
+        class FakeResp:
+            def read(self) -> bytes:
+                return fake_response
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+        monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **kw: FakeResp())
+
+        models = await fetch_available_models(
+            "https://api.openai.com/v1",
+            api_key="sk-test",
+            provider_type="openai",
+        )
+        assert "gpt-5.4" in models
+        assert "gpt-5.2" in models
+        assert "gpt-4.1" in models
+
+    @pytest.mark.asyncio
+    async def test_empty_data_returns_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Empty data list returns fallback."""
+        import urllib.request
+
+        fake_response = json.dumps({"data": []}).encode()
+
+        class FakeResp:
+            def read(self) -> bytes:
+                return fake_response
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+        monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **kw: FakeResp())
+
+        models = await fetch_available_models(
+            "https://api.openai.com/v1",
+            provider_type="openai",
+        )
+        # Falls back to hardcoded list
+        assert "gpt-5.4" in models

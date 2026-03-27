@@ -23,6 +23,7 @@ from isotope_agents.config import (
     PROVIDER_DEFAULTS,
     IsotopeConfig,
     create_provider,
+    fetch_available_models,
     save_config,
 )
 from isotope_agents.presets import CODING
@@ -626,12 +627,40 @@ class TUI:
                 api_key = await self._input_handler.get_user_input(f"API key{hint}: ")
                 api_key = api_key.strip()
 
-        # Model
+        # Model — fetch available models from provider API
         default_model = defaults["default_model"]
-        model_input = await self._input_handler.get_user_input(
-            f"Default model [{default_model}]: "
+        _print("\nFetching available models...", style="dim")
+        models = await fetch_available_models(
+            base_url, api_key=api_key, provider_type=ptype
         )
-        model = model_input.strip() or default_model
+
+        if models:
+            # Place default model first if present
+            if default_model in models:
+                models.remove(default_model)
+                models.insert(0, default_model)
+            _print("\nAvailable models:", style="info")
+            for i, m in enumerate(models, 1):
+                suffix = " (default)" if m == default_model else ""
+                _print(f"  {i}. {m}{suffix}", style="dim")
+            model_choice = await self._input_handler.get_user_input("\nModel [1]: ")
+            model_choice = model_choice.strip()
+            try:
+                midx = int(model_choice) - 1 if model_choice else 0
+                if not (0 <= midx < len(models)):
+                    midx = 0
+            except ValueError:
+                # If they typed a model name directly, use it
+                model = model_choice or default_model
+                midx = -1
+            if midx >= 0:
+                model = models[midx]
+        else:
+            # Fallback: manual input
+            model_input = await self._input_handler.get_user_input(
+                f"Default model [{default_model}]: "
+            )
+            model = model_input.strip() or default_model
 
         # Build and save config
         from isotope_agents.config import ProviderConfig
