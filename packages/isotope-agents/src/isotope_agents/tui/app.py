@@ -16,10 +16,18 @@ from collections.abc import AsyncGenerator
 # Bypass system HTTP proxies (e.g. Clash) for localhost
 os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1,::1")
 
-from isotope_core.providers.proxy import ProxyProvider
 from isotope_core.types import AgentEvent, AssistantMessage
 
 from isotope_agents.agent import IsotopeAgent
+from isotope_agents.config import (
+    PROVIDER_DEFAULTS,
+    IsotopeConfig,
+    create_provider,
+    fetch_available_models,
+    load_agent_md,
+    save_agent_md,
+    save_config,
+)
 from isotope_agents.presets import CODING
 from isotope_agents.session import SessionStore
 
@@ -34,8 +42,13 @@ from .render import (
     render_tool_output,
 )
 
-PROXY_BASE_URL = "http://localhost:4141/v1"
-DEFAULT_MODEL = "claude-opus-4.6"
+PROVIDER_LABELS = {
+    "anthropic": "Anthropic        (claude-opus-4.6, claude-sonnet-4.6, ...)",
+    "openai": "OpenAI           (gpt-5.4, gpt-5.2, ...)",
+    "minimax": "MiniMax CN       (MiniMax-M2.7, api.minimaxi.com)",
+    "minimax-global": "MiniMax Global   (MiniMax-M2.7, api.minimax.io)",
+    "proxy": "GitHub Copilot proxy  (localhost, LiteLLM, Ollama, ...)",
+}
 
 # Workspace directory — all relative file paths are resolved against this.
 WORKSPACE = os.getcwd()
@@ -44,26 +57,6 @@ WORKSPACE = os.getcwd()
 # ---------------------------------------------------------------------------
 # Model listing
 # ---------------------------------------------------------------------------
-
-
-async def _fetch_models(base_url: str) -> list[str]:
-    """Fetch available models from the proxy."""
-    import httpx
-
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{base_url}/models")
-            resp.raise_for_status()
-            data = resp.json()
-            models: list[str] = []
-            for m in data.get("data", []):
-                mid = m.get("id", "")
-                if mid:
-                    models.append(mid)
-            return sorted(models)
-    except Exception as exc:
-        _print(f"Warning: could not fetch models: {exc}", style="warn")
-        return []
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +68,7 @@ class TUI:
     """Interactive TUI for isotope-agents."""
 
     def __init__(self) -> None:
-        self._state = TUIState(model=DEFAULT_MODEL, preset=CODING)
+        self._state = TUIState(model="", preset=CODING)
         self._command_handler = CommandHandler(self._state)
         self.agent: IsotopeAgent | None = None
         self.session_store = SessionStore()
@@ -85,6 +78,7 @@ class TUI:
         self._input_handler = StreamInputHandler()
         self.resume_session_id: str | None = None  # session to resume
         self._streamed_text: bool = False  # tracks if text deltas were emitted
+        self.config: IsotopeConfig = IsotopeConfig()  # provider config
 
     # -- convenience accessors for state fields used throughout the class ----
 
@@ -352,11 +346,7 @@ class TUI:
         Args:
             session_id: Optional session ID to resume.
         """
-        provider = ProxyProvider(
-            model=self.model,
-            base_url=PROXY_BASE_URL,
-            api_key="not-needed",
-        )
+        provider = create_provider(self.model, self.config)
 
         # Use minimal preset when tools are disabled, otherwise use the current preset
         preset = "minimal" if not self.tools_enabled else self.preset
@@ -403,39 +393,6 @@ class TUI:
         self.agent = self._create_agent(old_session_id)
         if old_messages:
             self.agent.core.replace_messages(old_messages)
-
-    async def _select_model(self, models: list[str]) -> str:
-        """Let the user pick a model or accept the default."""
-        if models:
-            _print("\nAvailable models:", style="info")
-            for i, m in enumerate(models, 1):
-                marker = " (default)" if m == DEFAULT_MODEL else ""
-                _print(f"  {i}. {m}{marker}", style="dim")
-
-            choice = await self._input_handler.get_user_input(
-                f"\nSelect model [Enter for {DEFAULT_MODEL}]: "
-            )
-
-            choice = choice.strip()
-            if not choice:
-                return DEFAULT_MODEL
-
-            # Accept number or name
-            try:
-                idx = int(choice) - 1
-                if 0 <= idx < len(models):
-                    return models[idx]
-            except ValueError:
-                pass
-
-            # Accept partial name match
-            for m in models:
-                if choice.lower() in m.lower():
-                    return m
-
-            _print(f"Unknown model '{choice}', using {DEFAULT_MODEL}", style="warn")
-            return DEFAULT_MODEL
-        return DEFAULT_MODEL
 
     async def _get_system_prompt(self) -> str:
         """Prompt user for system prompt."""
@@ -621,24 +578,195 @@ class TUI:
                 style="dim",
             )
 
-    async def run(self) -> None:
-        """Main TUI loop."""
-        _print("isotope-agents TUI v1.0", style="info")
-        _print(f"Proxy: {PROXY_BASE_URL}", style="dim")
-        _print(f"Workspace: {WORKSPACE}", style="dim")
+    async def _run_setup_wizard(self) -> IsotopeConfig:
+        """Interactive first-run setup wizard.
 
-        # Fetch and select model
-        models = await _fetch_models(PROXY_BASE_URL)
-        self.model = await self._select_model(models)
-        _print(f"Model: {self.model}", style="model")
+        Returns the configured IsotopeConfig (also saves to disk).
+        """
+        _print(
+            "\nWelcome to Isotope! Let's configure your AI provider.\n",
+            style="info",
+        )
+
+        _cancel = " (Ctrl+D to cancel)"
+
+        # Provider selection
+        _print("Choose a provider:", style="info")
+        provider_keys = list(PROVIDER_LABELS.keys())
+        for i, key in enumerate(provider_keys, 1):
+            _print(f"  {i}. {PROVIDER_LABELS[key]}", style="dim")
+
+        choice = await self._input_handler.get_user_input(f"\nProvider [1]{_cancel}: ")
+        choice = choice.strip()
+        try:
+            idx = int(choice) - 1 if choice else 0
+            if not (0 <= idx < len(provider_keys)):
+                idx = 0
+        except ValueError:
+            idx = 0
+        ptype = provider_keys[idx]
+        defaults = PROVIDER_DEFAULTS[ptype]
+
+        # Base URL (only ask for proxy)
+        base_url = defaults["base_url"]
+        if ptype == "proxy":
+            custom_url = await self._input_handler.get_user_input(
+                f"Base URL [{base_url}]{_cancel}: "
+            )
+            if custom_url.strip():
+                base_url = custom_url.strip()
+
+        # API key
+        api_key = ""
+        if ptype != "proxy":
+            env_var = defaults.get("env_key", "")
+            env_val = os.environ.get(env_var, "") if env_var else ""
+            hint = f" (or set {env_var})" if env_var else ""
+            if env_val:
+                api_key = await self._input_handler.get_user_input(
+                    f"API key [from {env_var}]{_cancel}: "
+                )
+                if not api_key.strip():
+                    api_key = env_val
+            else:
+                api_key = await self._input_handler.get_user_input(
+                    f"API key{hint}{_cancel}: "
+                )
+                api_key = api_key.strip()
+
+        # Model — fetch available models from provider API
+        default_model = defaults["default_model"]
+        _print("\nFetching available models...", style="dim")
+        models = await fetch_available_models(
+            base_url, api_key=api_key, provider_type=ptype
+        )
+
+        if models:
+            # Separate hint entry ("N more — type a model name directly")
+            hint_entry = ""
+            if models and models[-1].startswith("("):
+                hint_entry = models.pop()
+
+            # Place default model first if present
+            if default_model in models:
+                models.remove(default_model)
+                models.insert(0, default_model)
+
+            _print("\nAvailable models:", style="info")
+            for i, m in enumerate(models, 1):
+                suffix = " (default)" if m == default_model else ""
+                _print(f"  {i}. {m}{suffix}", style="dim")
+            if hint_entry:
+                _print(f"  {hint_entry}", style="dim")
+
+            model_choice = await self._input_handler.get_user_input(
+                f"\nModel [1]{_cancel}: "
+            )
+            model_choice = model_choice.strip()
+            try:
+                midx = int(model_choice) - 1 if model_choice else 0
+                if not (0 <= midx < len(models)):
+                    midx = 0
+            except ValueError:
+                # If they typed a model name directly, use it
+                model = model_choice or default_model
+                midx = -1
+            if midx >= 0:
+                model = models[midx]
+        else:
+            # Fallback: manual input
+            model_input = await self._input_handler.get_user_input(
+                f"Default model [{default_model}]{_cancel}: "
+            )
+            model = model_input.strip() or default_model
 
         # System prompt
-        custom_prompt = await self._get_system_prompt()
-        if custom_prompt:
-            self.custom_system_prompt = custom_prompt
-            _print(f"System prompt: {self.custom_system_prompt}", style="dim")
+        _print(
+            "\nCustom system prompt (Enter to use preset default):",
+            style="info",
+        )
+        sys_prompt_input = await self._input_handler.get_user_input(
+            f"System prompt{_cancel}: "
+        )
+        sys_prompt_text = sys_prompt_input.strip()
+
+        if sys_prompt_text:
+            prompt_mode = "custom"
+            save_agent_md(sys_prompt_text)
         else:
+            prompt_mode = "default"
+
+        # Build and save config
+        from isotope_agents.config import ProviderConfig
+
+        config = IsotopeConfig(
+            provider=ProviderConfig(
+                type=ptype,
+                base_url=base_url,
+                api_key=api_key,
+            ),
+            model=model,
+            system_prompt=prompt_mode,
+        )
+        save_config(config)
+        _print("\n✓ Saved to ~/.isotope/settings.json\n", style="info")
+        return config
+
+    async def run(self) -> None:
+        """Main TUI loop."""
+        from isotope_agents import __version__
+
+        _print(f"isotope-agents TUI v{__version__}", style="info")
+
+        # First-run experience: if no config and no env vars, run wizard
+        needs_fre = (
+            self.config.provider.type == "proxy"
+            and not self.config.provider.api_key
+            and self.config.model == "default"
+        )
+        if needs_fre:
+            self.config = await self._run_setup_wizard()
+
+        # Resolve model if not set by CLI
+        if not self.model:
+            if self.config.model and self.config.model != "default":
+                self.model = self.config.model
+            else:
+                defaults = PROVIDER_DEFAULTS.get(
+                    self.config.provider.type, PROVIDER_DEFAULTS["proxy"]
+                )
+                self.model = defaults["default_model"]
+
+        ptype = self.config.provider.type
+        _print(f"Provider: {ptype}", style="dim")
+        _print(f"Model: {self.model}", style="model")
+        _print(f"Workspace: {WORKSPACE}", style="dim")
+
+        # System prompt resolution based on mode:
+        # - "none"    → not yet configured, ask user
+        # - "default" → use preset system prompt, skip asking
+        # - "custom"  → load from ~/.isotope/agent.md
+        sp_mode = self.config.system_prompt
+        if sp_mode == "custom":
+            agent_md = load_agent_md()
+            if agent_md:
+                self.custom_system_prompt = agent_md
+                _print("System prompt: loaded from ~/.isotope/agent.md", style="dim")
+            else:
+                _print(
+                    f"Using {self.preset.name} preset (agent.md empty)",
+                    style="dim",
+                )
+        elif sp_mode == "default":
             _print(f"Using {self.preset.name} preset system prompt", style="dim")
+        else:
+            # "none" — not yet configured, ask user
+            custom_prompt = await self._get_system_prompt()
+            if custom_prompt:
+                self.custom_system_prompt = custom_prompt
+                _print(f"System prompt: {self.custom_system_prompt}", style="dim")
+            else:
+                _print(f"Using {self.preset.name} preset system prompt", style="dim")
 
         # Create agent (with session resuming if requested)
         if self.resume_session_id:
