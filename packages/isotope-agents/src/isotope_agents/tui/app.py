@@ -584,10 +584,11 @@ class TUI:
         Returns the configured IsotopeConfig (also saves to disk).
         """
         _print(
-            "\nWelcome to Isotope! Let's configure your AI provider.",
+            "\nWelcome to Isotope! Let's configure your AI provider.\n",
             style="info",
         )
-        _print("(Ctrl+D to cancel)\n", style="dim")
+
+        _cancel = " (Ctrl+D to cancel)"
 
         # Provider selection
         _print("Choose a provider:", style="info")
@@ -595,7 +596,7 @@ class TUI:
         for i, key in enumerate(provider_keys, 1):
             _print(f"  {i}. {PROVIDER_LABELS[key]}", style="dim")
 
-        choice = await self._input_handler.get_user_input("\nProvider [1]: ")
+        choice = await self._input_handler.get_user_input(f"\nProvider [1]{_cancel}: ")
         choice = choice.strip()
         try:
             idx = int(choice) - 1 if choice else 0
@@ -610,7 +611,7 @@ class TUI:
         base_url = defaults["base_url"]
         if ptype == "proxy":
             custom_url = await self._input_handler.get_user_input(
-                f"Base URL [{base_url}]: "
+                f"Base URL [{base_url}]{_cancel}: "
             )
             if custom_url.strip():
                 base_url = custom_url.strip()
@@ -623,12 +624,14 @@ class TUI:
             hint = f" (or set {env_var})" if env_var else ""
             if env_val:
                 api_key = await self._input_handler.get_user_input(
-                    f"API key [from {env_var}]: "
+                    f"API key [from {env_var}]{_cancel}: "
                 )
                 if not api_key.strip():
                     api_key = env_val
             else:
-                api_key = await self._input_handler.get_user_input(f"API key{hint}: ")
+                api_key = await self._input_handler.get_user_input(
+                    f"API key{hint}{_cancel}: "
+                )
                 api_key = api_key.strip()
 
         # Model — fetch available models from provider API
@@ -656,7 +659,9 @@ class TUI:
             if hint_entry:
                 _print(f"  {hint_entry}", style="dim")
 
-            model_choice = await self._input_handler.get_user_input("\nModel [1]: ")
+            model_choice = await self._input_handler.get_user_input(
+                f"\nModel [1]{_cancel}: "
+            )
             model_choice = model_choice.strip()
             try:
                 midx = int(model_choice) - 1 if model_choice else 0
@@ -671,7 +676,7 @@ class TUI:
         else:
             # Fallback: manual input
             model_input = await self._input_handler.get_user_input(
-                f"Default model [{default_model}]: "
+                f"Default model [{default_model}]{_cancel}: "
             )
             model = model_input.strip() or default_model
 
@@ -680,7 +685,9 @@ class TUI:
             "\nCustom system prompt (Enter to use preset default):",
             style="info",
         )
-        sys_prompt_input = await self._input_handler.get_user_input("System prompt: ")
+        sys_prompt_input = await self._input_handler.get_user_input(
+            f"System prompt{_cancel}: "
+        )
         sys_prompt_text = sys_prompt_input.strip()
 
         if sys_prompt_text:
