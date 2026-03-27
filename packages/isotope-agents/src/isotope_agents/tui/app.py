@@ -673,6 +673,15 @@ class TUI:
             )
             model = model_input.strip() or default_model
 
+        # System prompt
+        _print(
+            "\nCustom system prompt (Enter to use preset default):",
+            style="info",
+        )
+        sys_prompt_input = await self._input_handler.get_user_input("System prompt: ")
+        sys_prompt = sys_prompt_input.strip()
+        # "" means explicitly skipped → use preset; stored as "" in config
+
         # Build and save config
         from isotope_agents.config import ProviderConfig
 
@@ -683,6 +692,7 @@ class TUI:
                 api_key=api_key,
             ),
             model=model,
+            system_prompt=sys_prompt,  # "" = use preset default
         )
         save_config(config)
         _print("\n✓ Saved to ~/.isotope/settings.json\n", style="info")
@@ -718,16 +728,25 @@ class TUI:
         _print(f"Model: {self.model}", style="model")
         _print(f"Workspace: {WORKSPACE}", style="dim")
 
-        # System prompt (skip after FRE — use preset default)
-        if not needs_fre:
+        # System prompt resolution:
+        # - FRE just ran → system_prompt already in self.config (may be "")
+        # - Config loaded from file with system_prompt set → use it, skip asking
+        # - Config has system_prompt=None → first time without FRE, ask user
+        if self.config.system_prompt is not None:
+            # Already configured (from FRE or saved config)
+            if self.config.system_prompt:
+                self.custom_system_prompt = self.config.system_prompt
+                _print(f"System prompt: {self.custom_system_prompt}", style="dim")
+            else:
+                _print(f"Using {self.preset.name} preset system prompt", style="dim")
+        else:
+            # Not yet configured — ask (e.g. env-var detected, no settings.json)
             custom_prompt = await self._get_system_prompt()
             if custom_prompt:
                 self.custom_system_prompt = custom_prompt
                 _print(f"System prompt: {self.custom_system_prompt}", style="dim")
             else:
                 _print(f"Using {self.preset.name} preset system prompt", style="dim")
-        else:
-            _print(f"Using {self.preset.name} preset system prompt", style="dim")
 
         # Create agent (with session resuming if requested)
         if self.resume_session_id:

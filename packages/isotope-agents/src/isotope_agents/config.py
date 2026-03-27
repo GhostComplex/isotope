@@ -85,6 +85,7 @@ class IsotopeConfig:
 
     model: str = "default"
     preset: str = "coding"
+    system_prompt: str | None = None  # None = not yet configured (ask on first run)
     debug: bool = False
     sessions_dir: str = "~/.isotope/sessions"
     skills: list[str] = field(default_factory=lambda: ["~/.isotope/skills/"])
@@ -168,9 +169,14 @@ def _parse_config(raw: dict[str, Any]) -> IsotopeConfig:
                     )
                 )
 
+    # system_prompt: None = not configured yet, "" = explicitly empty (use preset)
+    sp_raw = raw.get("system_prompt")
+    system_prompt: str | None = str(sp_raw) if sp_raw is not None else None
+
     return IsotopeConfig(
         model=str(raw.get("model", "default")),
         preset=str(raw.get("preset", "coding")),
+        system_prompt=system_prompt,
         debug=bool(raw.get("debug", False)),
         sessions_dir=str(raw.get("sessions_dir", "~/.isotope/sessions")),
         skills=skills,
@@ -600,6 +606,10 @@ def save_config(config: IsotopeConfig, path: Path | None = None) -> None:
         "preset": config.preset,
         "sessions_dir": config.sessions_dir,
     }
+
+    # system_prompt: None = not yet configured, "" = explicitly empty (use preset)
+    if config.system_prompt is not None:
+        data["system_prompt"] = config.system_prompt
 
     if config.skills != ["~/.isotope/skills/"]:
         data["skills"] = config.skills

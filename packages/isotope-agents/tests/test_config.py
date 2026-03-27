@@ -298,6 +298,33 @@ class TestSaveConfig:
         save_config(IsotopeConfig(), cfg_path)
         assert cfg_path.exists()
 
+    def test_system_prompt_roundtrip(self, tmp_path: Path) -> None:
+        """system_prompt survives save/load roundtrip."""
+        cfg_path = tmp_path / "settings.json"
+        config = IsotopeConfig(system_prompt="You are a helpful coding assistant.")
+        save_config(config, cfg_path)
+        loaded = load_config(cfg_path)
+        assert loaded.system_prompt == "You are a helpful coding assistant."
+
+    def test_system_prompt_empty_string_roundtrip(self, tmp_path: Path) -> None:
+        """Empty string system_prompt (skip) persists correctly."""
+        cfg_path = tmp_path / "settings.json"
+        config = IsotopeConfig(system_prompt="")
+        save_config(config, cfg_path)
+        loaded = load_config(cfg_path)
+        assert loaded.system_prompt == ""
+
+    def test_system_prompt_none_not_saved(self, tmp_path: Path) -> None:
+        """None system_prompt is not written to JSON."""
+        cfg_path = tmp_path / "settings.json"
+        config = IsotopeConfig(system_prompt=None)
+        save_config(config, cfg_path)
+        with open(cfg_path) as f:
+            data = json.load(f)
+        assert "system_prompt" not in data
+        loaded = load_config(cfg_path)
+        assert loaded.system_prompt is None
+
 
 class TestYamlMigration:
     """Tests for YAML → JSON migration."""
