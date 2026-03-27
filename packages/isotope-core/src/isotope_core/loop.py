@@ -166,10 +166,17 @@ def _hash_tool_call(tool_name: str, args: dict[str, Any]) -> str:
     return hashlib.md5(combined.encode()).hexdigest()
 
 
-def _latest_tool_call_block(message: AssistantMessage | None) -> ToolCallContent | None:
-    """Return the last ToolCallContent from an AssistantMessage, if any."""
+def _get_tool_call_block(
+    message: AssistantMessage | None, content_index: int
+) -> ToolCallContent | None:
+    """Return the ToolCallContent at *content_index*, if it exists and matches."""
     if message is None:
         return None
+    if content_index < len(message.content):
+        block = message.content[content_index]
+        if isinstance(block, ToolCallContent):
+            return block
+    # Fallback: scan in reverse (shouldn't be needed, but defensive).
     for block in reversed(message.content):
         if isinstance(block, ToolCallContent):
             return block
@@ -452,9 +459,14 @@ async def agent_loop(
                     # the full tool-call arguments to finish streaming.
                     if hasattr(event, "partial"):
                         assistant_message = event.partial
-                    tc_block = _latest_tool_call_block(assistant_message)
+                    tc_block = _get_tool_call_block(
+                        assistant_message, event.content_index
+                    )
                     if tc_block is not None:
                         streamed_tool_start_ids.add(tc_block.id)
+                        # Args are empty here because the tool-call arguments
+                        # haven't been streamed yet; the full args will be
+                        # available on the ToolCallContent at execution time.
                         ts_evt = await _emit(
                             ToolStartEvent(
                                 tool_call_id=tc_block.id,
@@ -773,35 +785,6 @@ async def agent_loop(
         if hooks and hooks.on_agent_end:
             await _call_hook(hooks.on_agent_end, "completed")
         return
-
-
-async def _execute_tool_call(
-    tool_call: ToolCallContent,
-    assistant_message: AssistantMessage,
-    context: Context,
-    config: AgentLoopConfig,
-    signal: asyncio.Event | None,
-) -> tuple[AsyncGenerator[AgentEvent, None], ToolResultMessage]:
-    """Execute a single tool call with events."""
-
-    async def event_gen() -> AsyncGenerator[AgentEvent, None]:
-        yield ToolStartEvent(
-            tool_call_id=tool_call.id,
-            tool_name=tool_call.name,
-            args=tool_call.arguments,
-        )
-
-    events, result = await _execute_tool_call_inner(
-        tool_call, assistant_message, context, config, signal
-    )
-
-    async def combined_gen() -> AsyncGenerator[AgentEvent, None]:
-        async for e in event_gen():
-            yield e
-        for e in events:
-            yield e
-
-    return combined_gen(), result
 
 
 async def _execute_tool_call_inner(
