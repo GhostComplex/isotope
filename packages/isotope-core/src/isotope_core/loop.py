@@ -166,6 +166,23 @@ def _hash_tool_call(tool_name: str, args: dict[str, Any]) -> str:
     return hashlib.md5(combined.encode()).hexdigest()
 
 
+def _get_tool_call_block(
+    message: AssistantMessage | None, content_index: int
+) -> ToolCallContent | None:
+    """Return the ToolCallContent at *content_index*, if it exists and matches."""
+    if message is None:
+        return None
+    if content_index < len(message.content):
+        block = message.content[content_index]
+        if isinstance(block, ToolCallContent):
+            return block
+    # Fallback: scan in reverse (shouldn't be needed, but defensive).
+    for block in reversed(message.content):
+        if isinstance(block, ToolCallContent):
+            return block
+    return None
+
+
 def _check_loop_detection(
     tool_calls_history: list[tuple[str, str]],  # (tool_name, call_hash)
     config: LoopDetectionConfig,
@@ -418,6 +435,9 @@ async def agent_loop(
         # Stream assistant response
         assistant_message: AssistantMessage | None = None
         message_started = False
+        # Track tool call IDs whose ToolStartEvent was already emitted
+        # during streaming so we can skip the duplicate when execution begins.
+        streamed_tool_start_ids: set[str] = set()
 
         try:
             async for event in config.provider.stream(
@@ -433,14 +453,40 @@ async def agent_loop(
                         yield ms_evt
                     message_started = True
 
+                elif event.type == "tool_call_start":
+                    # Emit an early ToolStartEvent so the TUI can show
+                    # "[calling <tool>]" immediately instead of waiting for
+                    # the full tool-call arguments to finish streaming.
+                    if hasattr(event, "partial"):
+                        assistant_message = event.partial
+                    tc_block = _get_tool_call_block(assistant_message, event.content_index)
+                    if tc_block is not None:
+                        streamed_tool_start_ids.add(tc_block.id)
+                        # Args are empty here because the tool-call arguments
+                        # haven't been streamed yet; the full args will be
+                        # available on the ToolCallContent at execution time.
+                        ts_evt = await _emit(
+                            ToolStartEvent(
+                                tool_call_id=tc_block.id,
+                                tool_name=tc_block.name,
+                                args={},
+                            )
+                        )
+                        if ts_evt is not None:
+                            yield ts_evt
+
+                elif event.type in ("tool_call_delta", "tool_call_end"):
+                    # Suppress tool-call argument deltas from being emitted
+                    # as text — they are raw JSON fragments that would be
+                    # buffered without flushing and appear stuck to the user.
+                    if hasattr(event, "partial"):
+                        assistant_message = event.partial
+
                 elif event.type in (
                     "text_delta",
                     "text_end",
                     "thinking_delta",
                     "thinking_end",
-                    "tool_call_start",
-                    "tool_call_delta",
-                    "tool_call_end",
                 ):
                     if hasattr(event, "partial"):
                         assistant_message = event.partial
@@ -541,7 +587,18 @@ async def agent_loop(
             # Execute tool calls
             if config.tool_execution == "sequential":
                 for tool_call in tool_calls:
-                    result = await _execute_tool_call(
+                    # Emit ToolStartEvent only if not already emitted during streaming
+                    if tool_call.id not in streamed_tool_start_ids:
+                        ts_evt2 = await _emit(
+                            ToolStartEvent(
+                                tool_call_id=tool_call.id,
+                                tool_name=tool_call.name,
+                                args=tool_call.arguments,
+                            )
+                        )
+                        if ts_evt2 is not None:
+                            yield ts_evt2
+                    result = await _execute_tool_call_inner(
                         tool_call,
                         assistant_message,
                         Context(
@@ -552,24 +609,26 @@ async def agent_loop(
                         config,
                         signal,
                     )
-                    async for tool_event in result[0]:
+                    for tool_event in result[0]:
                         te_out = await _emit(tool_event)
                         if te_out is not None:
                             yield te_out
                     tool_results.append(result[1])
             else:
                 # Parallel execution
-                # First emit all tool_start events
+                # Emit tool_start events only for tool calls not already
+                # announced during streaming.
                 for tool_call in tool_calls:
-                    ts_out = await _emit(
-                        ToolStartEvent(
-                            tool_call_id=tool_call.id,
-                            tool_name=tool_call.name,
-                            args=tool_call.arguments,
+                    if tool_call.id not in streamed_tool_start_ids:
+                        ts_out = await _emit(
+                            ToolStartEvent(
+                                tool_call_id=tool_call.id,
+                                tool_name=tool_call.name,
+                                args=tool_call.arguments,
+                            )
                         )
-                    )
-                    if ts_out is not None:
-                        yield ts_out
+                        if ts_out is not None:
+                            yield ts_out
 
                 # Execute in parallel
                 tasks = [
@@ -724,35 +783,6 @@ async def agent_loop(
         if hooks and hooks.on_agent_end:
             await _call_hook(hooks.on_agent_end, "completed")
         return
-
-
-async def _execute_tool_call(
-    tool_call: ToolCallContent,
-    assistant_message: AssistantMessage,
-    context: Context,
-    config: AgentLoopConfig,
-    signal: asyncio.Event | None,
-) -> tuple[AsyncGenerator[AgentEvent, None], ToolResultMessage]:
-    """Execute a single tool call with events."""
-
-    async def event_gen() -> AsyncGenerator[AgentEvent, None]:
-        yield ToolStartEvent(
-            tool_call_id=tool_call.id,
-            tool_name=tool_call.name,
-            args=tool_call.arguments,
-        )
-
-    events, result = await _execute_tool_call_inner(
-        tool_call, assistant_message, context, config, signal
-    )
-
-    async def combined_gen() -> AsyncGenerator[AgentEvent, None]:
-        async for e in event_gen():
-            yield e
-        for e in events:
-            yield e
-
-    return combined_gen(), result
 
 
 async def _execute_tool_call_inner(
