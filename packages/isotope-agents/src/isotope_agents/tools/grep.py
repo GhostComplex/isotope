@@ -50,8 +50,9 @@ async def _rg_search(
     except FileNotFoundError:
         return None
     except TimeoutError:
-        proc.kill()
-        await proc.wait()
+        if proc is not None:
+            proc.kill()
+            await proc.wait()
         return None
 
 
