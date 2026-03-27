@@ -33,6 +33,7 @@ from isotope_core.types import (
 # Helpers
 # =============================================================================
 
+
 def _ts() -> int:
     """Return a millisecond timestamp for test messages."""
     return int(time.time() * 1000)
@@ -196,9 +197,7 @@ class TestCompactMessages:
             _assistant("Sure, adding tests now"),
         ]
 
-        result = await compact_messages(
-            messages, provider, tracker, keep_last_n=2
-        )
+        result = await compact_messages(messages, provider, tracker, keep_last_n=2)
 
         assert result.summary == summary_text
         assert result.messages_compacted == 4  # 6 - 2 kept
@@ -222,9 +221,7 @@ class TestCompactMessages:
 
         messages = [old_msg1, old_msg2, recent_msg1, recent_msg2]
 
-        result = await compact_messages(
-            messages, provider, tracker, keep_last_n=2
-        )
+        result = await compact_messages(messages, provider, tracker, keep_last_n=2)
 
         # 2 old messages compacted
         assert result.messages_compacted == 2
@@ -238,9 +235,7 @@ class TestCompactMessages:
 
         messages = [_user("a"), _assistant("b"), _user("c")]
 
-        result = await compact_messages(
-            messages, provider, tracker, keep_last_n=1
-        )
+        result = await compact_messages(messages, provider, tracker, keep_last_n=1)
 
         assert result.messages_compacted == 2
 
@@ -288,9 +283,7 @@ class TestCompactMessages:
             _user("Great"),
         ]
 
-        await compact_messages(
-            messages, CapturingProvider(), tracker, keep_last_n=2
-        )
+        await compact_messages(messages, CapturingProvider(), tracker, keep_last_n=2)
 
         # Verify the prompt was sent with file information
         assert len(captured_context) == 1
@@ -328,9 +321,7 @@ class TestCompactMessages:
             _assistant("You're welcome"),
         ]
 
-        result = await compact_messages(
-            messages, provider, tracker, keep_last_n=2
-        )
+        result = await compact_messages(messages, provider, tracker, keep_last_n=2)
 
         assert result.messages_compacted == 4
         assert result.summary == "Used bash tool."
@@ -379,9 +370,7 @@ class TestSerializeMessages:
         assert _serialize_messages([]) == ""
 
     def test_serialize_tool_result(self) -> None:
-        messages: list[Message] = [
-            _tool_result("tc1", "bash", "output here")
-        ]
+        messages: list[Message] = [_tool_result("tc1", "bash", "output here")]
         text = _serialize_messages(messages)
         assert "tool_result:" in text
         assert "output here" in text

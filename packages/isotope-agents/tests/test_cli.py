@@ -7,7 +7,13 @@ import subprocess
 import sys
 from unittest.mock import patch, MagicMock
 
-from isotope_agents.cli import create_parser, handle_agent_event, main, list_sessions, run_rpc
+from isotope_agents.cli import (
+    create_parser,
+    handle_agent_event,
+    main,
+    list_sessions,
+    run_rpc,
+)
 from isotope_agents.session import SessionMeta
 from isotope_core.types import (
     AssistantMessage,
@@ -148,12 +154,17 @@ class TestCLI:
     def test_rpc_command_with_all_flags(self) -> None:
         """RPC command with all flags parses correctly."""
         parser = create_parser()
-        args = parser.parse_args([
-            "--model", "claude-sonnet-4-20250514",
-            "--preset", "assistant",
-            "rpc",
-            "--session", "xyz789",
-        ])
+        args = parser.parse_args(
+            [
+                "--model",
+                "claude-sonnet-4-20250514",
+                "--preset",
+                "assistant",
+                "rpc",
+                "--session",
+                "xyz789",
+            ]
+        )
         assert args.command == "rpc"
         assert args.model == "claude-sonnet-4-20250514"
         assert args.preset == "assistant"
@@ -190,8 +201,10 @@ class TestCLI:
 class TestSessionsCommand:
     """Tests for the sessions command."""
 
-    @patch('isotope_agents.cli.SessionStore')
-    def test_list_sessions_no_sessions(self, mock_session_store_class: MagicMock) -> None:
+    @patch("isotope_agents.cli.SessionStore")
+    def test_list_sessions_no_sessions(
+        self, mock_session_store_class: MagicMock
+    ) -> None:
         """Test listing sessions when no sessions exist."""
         # Setup mock
         mock_session_store = MagicMock()
@@ -199,13 +212,15 @@ class TestSessionsCommand:
         mock_session_store.list_sessions.return_value = []
 
         # Capture output
-        with patch('builtins.print') as mock_print:
+        with patch("builtins.print") as mock_print:
             list_sessions(10)
 
         mock_print.assert_called_with("No sessions found.")
 
-    @patch('isotope_agents.cli.SessionStore')
-    def test_list_sessions_with_sessions(self, mock_session_store_class: MagicMock) -> None:
+    @patch("isotope_agents.cli.SessionStore")
+    def test_list_sessions_with_sessions(
+        self, mock_session_store_class: MagicMock
+    ) -> None:
         """Test listing sessions when sessions exist."""
         # Setup mock sessions
         mock_sessions = [
@@ -215,7 +230,7 @@ class TestSessionsCommand:
                 message_count=12,
                 last_message_preview="fix the auth bug",
                 model="claude-opus-4.6",
-                preset="coding"
+                preset="coding",
             ),
             SessionMeta(
                 id="e5f6g7h8",
@@ -223,8 +238,8 @@ class TestSessionsCommand:
                 message_count=5,
                 last_message_preview="summarize this doc",
                 model="claude-opus-4.6",
-                preset="assistant"
-            )
+                preset="assistant",
+            ),
         ]
 
         mock_session_store = MagicMock()
@@ -232,7 +247,7 @@ class TestSessionsCommand:
         mock_session_store.list_sessions.return_value = mock_sessions
 
         # Capture output
-        with patch('builtins.print') as mock_print:
+        with patch("builtins.print") as mock_print:
             list_sessions(10)
 
         # Verify output calls
@@ -246,12 +261,21 @@ class TestSessionsCommand:
         assert "Messages" in header_call
         assert "Last message" in header_call
 
-    @patch('isotope_agents.cli.SessionStore')
-    def test_list_sessions_respects_limit(self, mock_session_store_class: MagicMock) -> None:
+    @patch("isotope_agents.cli.SessionStore")
+    def test_list_sessions_respects_limit(
+        self, mock_session_store_class: MagicMock
+    ) -> None:
         """Test that sessions listing respects the limit parameter."""
         # Create more sessions than the limit
         mock_sessions = [
-            SessionMeta(f"session{i}", "2026-03-26T01:00:00Z", 1, f"message {i}", "claude-opus-4.6", "coding")
+            SessionMeta(
+                f"session{i}",
+                "2026-03-26T01:00:00Z",
+                1,
+                f"message {i}",
+                "claude-opus-4.6",
+                "coding",
+            )
             for i in range(15)
         ]
 
@@ -259,19 +283,21 @@ class TestSessionsCommand:
         mock_session_store_class.return_value = mock_session_store
         mock_session_store.list_sessions.return_value = mock_sessions
 
-        with patch('builtins.print') as mock_print:
+        with patch("builtins.print") as mock_print:
             list_sessions(5)
 
         # Check that only 5 sessions are printed (plus header and separator)
         calls = mock_print.call_args_list
-        session_lines = [call for call in calls if 'session' in str(call)]
+        session_lines = [call for call in calls if "session" in str(call)]
         assert len(session_lines) == 5
 
 
 class TestHandleAgentEvent:
     """Tests for handle_agent_event() output routing."""
 
-    def test_message_update_prints_delta(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_message_update_prints_delta(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """MessageUpdateEvent with delta prints content to stdout."""
         msg = AssistantMessage(
             content=[TextContent(text="hi")],
@@ -283,7 +309,9 @@ class TestHandleAgentEvent:
         captured = capsys.readouterr()
         assert captured.out == "hello world"  # no trailing newline (end="")
 
-    def test_message_update_no_delta_prints_nothing(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_message_update_no_delta_prints_nothing(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """MessageUpdateEvent without delta prints nothing."""
         msg = AssistantMessage(content=[TextContent(text="")], timestamp=0)
         event = MessageUpdateEvent(message=msg, delta=None)
@@ -293,31 +321,45 @@ class TestHandleAgentEvent:
         assert captured.out == ""
         assert captured.err == ""
 
-    def test_tool_start_prints_tool_name(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_tool_start_prints_tool_name(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """ToolStartEvent prints tool name to stderr."""
-        event = ToolStartEvent(tool_call_id="tc1", tool_name="read_file", args={"path": "/a"})
+        event = ToolStartEvent(
+            tool_call_id="tc1", tool_name="read_file", args={"path": "/a"}
+        )
         handle_agent_event(event)
 
         captured = capsys.readouterr()
         assert "[calling read_file]" in captured.err
 
-    def test_tool_end_error_prints_error_marker(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_tool_end_error_prints_error_marker(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """ToolEndEvent with is_error prints error marker to stderr."""
-        event = ToolEndEvent(tool_call_id="tc1", tool_name="run", result="fail", is_error=True)
+        event = ToolEndEvent(
+            tool_call_id="tc1", tool_name="run", result="fail", is_error=True
+        )
         handle_agent_event(event)
 
         captured = capsys.readouterr()
         assert "[tool error]" in captured.err
 
-    def test_tool_end_success_prints_nothing(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_tool_end_success_prints_nothing(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """ToolEndEvent without error prints nothing."""
-        event = ToolEndEvent(tool_call_id="tc1", tool_name="run", result="ok", is_error=False)
+        event = ToolEndEvent(
+            tool_call_id="tc1", tool_name="run", result="ok", is_error=False
+        )
         handle_agent_event(event)
 
         captured = capsys.readouterr()
         assert captured.err == ""
 
-    def test_turn_end_prints_newline_and_usage(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_turn_end_prints_newline_and_usage(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """TurnEndEvent with AssistantMessage prints newline and token usage."""
         msg = AssistantMessage(
             content=[TextContent(text="done")],
@@ -332,7 +374,9 @@ class TestHandleAgentEvent:
         assert "in=100" in captured.err
         assert "out=50" in captured.err
 
-    def test_turn_end_non_assistant_message(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_turn_end_non_assistant_message(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """TurnEndEvent with non-AssistantMessage prints newline only."""
         msg = UserMessage(content=[TextContent(text="hi")], timestamp=0)
         event = TurnEndEvent(message=msg)
@@ -373,7 +417,9 @@ class TestMainDispatch:
         assert call_args[0][2] is False  # no_tools default
 
     @patch("isotope_agents.cli.list_sessions")
-    def test_main_sessions_dispatches_to_list_sessions(self, mock_ls: MagicMock) -> None:
+    def test_main_sessions_dispatches_to_list_sessions(
+        self, mock_ls: MagicMock
+    ) -> None:
         """main() with 'sessions' dispatches to list_sessions."""
         with patch("sys.argv", ["isotope", "sessions", "--limit", "3"]):
             with pytest.raises(SystemExit) as exc_info:
@@ -384,7 +430,19 @@ class TestMainDispatch:
     @patch("isotope_agents.cli.run_rpc")
     def test_main_rpc_dispatches_to_run_rpc(self, mock_rpc: MagicMock) -> None:
         """main() with 'rpc' dispatches to run_rpc."""
-        with patch("sys.argv", ["isotope", "--model", "m1", "--preset", "minimal", "rpc", "--session", "s1"]):
+        with patch(
+            "sys.argv",
+            [
+                "isotope",
+                "--model",
+                "m1",
+                "--preset",
+                "minimal",
+                "rpc",
+                "--session",
+                "s1",
+            ],
+        ):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 0
@@ -481,7 +539,9 @@ class TestListSessionsEdgeCases:
     """Additional edge-case tests for list_sessions."""
 
     @patch("isotope_agents.cli.SessionStore")
-    def test_long_preview_is_truncated(self, mock_store_cls: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_long_preview_is_truncated(
+        self, mock_store_cls: MagicMock, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """Session with long last_message_preview gets truncated with ellipsis."""
         long_preview = "a" * 60
         mock_store = MagicMock()

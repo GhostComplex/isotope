@@ -197,9 +197,7 @@ class TestLoadFromServer:
         mock_session = AsyncMock()
         mock_session.initialize = AsyncMock()
         mock_session.list_tools = AsyncMock(return_value=fake_response)
-        mock_session.call_tool = AsyncMock(
-            return_value=_make_call_result(["ok"])
-        )
+        mock_session.call_tool = AsyncMock(return_value=_make_call_result(["ok"]))
 
         # Build async context-manager mocks
         mock_session_ctx = AsyncMock()
@@ -207,9 +205,7 @@ class TestLoadFromServer:
         mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
         mock_stdio_ctx = AsyncMock()
-        mock_stdio_ctx.__aenter__ = AsyncMock(
-            return_value=(MagicMock(), MagicMock())
-        )
+        mock_stdio_ctx.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
         mock_stdio_ctx.__aexit__ = AsyncMock(return_value=False)
 
         # Create fake mcp modules in sys.modules so imports inside
@@ -222,11 +218,14 @@ class TestLoadFromServer:
 
         with (
             patch("isotope_agents.mcp_client._ensure_mcp"),
-            patch.dict(sys.modules, {
-                "mcp": mock_mcp,
-                "mcp.client": MagicMock(),
-                "mcp.client.stdio": mock_stdio_mod,
-            }),
+            patch.dict(
+                sys.modules,
+                {
+                    "mcp": mock_mcp,
+                    "mcp.client": MagicMock(),
+                    "mcp.client.stdio": mock_stdio_mod,
+                },
+            ),
         ):
             tools = await loader.load_from_server(
                 {"command": "npx", "args": ["-y", "server-fs", "/tmp"]}
@@ -246,18 +245,14 @@ class TestLoadFromServer:
         mock_session = AsyncMock()
         mock_session.initialize = AsyncMock()
         mock_session.list_tools = AsyncMock(return_value=fake_response)
-        mock_session.call_tool = AsyncMock(
-            return_value=_make_call_result(["result"])
-        )
+        mock_session.call_tool = AsyncMock(return_value=_make_call_result(["result"]))
 
         mock_session_ctx = AsyncMock()
         mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
         mock_sse_ctx = AsyncMock()
-        mock_sse_ctx.__aenter__ = AsyncMock(
-            return_value=(MagicMock(), MagicMock())
-        )
+        mock_sse_ctx.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
         mock_sse_ctx.__aexit__ = AsyncMock(return_value=False)
 
         mock_mcp = MagicMock()
@@ -267,15 +262,16 @@ class TestLoadFromServer:
 
         with (
             patch("isotope_agents.mcp_client._ensure_mcp"),
-            patch.dict(sys.modules, {
-                "mcp": mock_mcp,
-                "mcp.client": MagicMock(),
-                "mcp.client.sse": mock_sse_mod,
-            }),
+            patch.dict(
+                sys.modules,
+                {
+                    "mcp": mock_mcp,
+                    "mcp.client": MagicMock(),
+                    "mcp.client.sse": mock_sse_mod,
+                },
+            ),
         ):
-            tools = await loader.load_from_server(
-                {"url": "http://localhost:3000/mcp"}
-            )
+            tools = await loader.load_from_server({"url": "http://localhost:3000/mcp"})
 
         assert len(tools) == 1
         assert tools[0].name == "search"
@@ -304,7 +300,7 @@ class TestMcpConfig:
             "  servers:\n"
             "    - name: filesystem\n"
             "      command: npx\n"
-            "      args: [\"-y\", \"@mcp/server-fs\", \"/tmp\"]\n"
+            '      args: ["-y", "@mcp/server-fs", "/tmp"]\n'
             "    - name: web\n"
             "      url: http://localhost:3000/mcp\n"
         )

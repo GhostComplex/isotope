@@ -57,4 +57,3 @@ jobs:
 
       - name: Ruff format check
         run: uv run ruff format --check packages/
-        continue-on-error: true  # TODO: fix existing format issues, then enforce

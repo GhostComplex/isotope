@@ -201,9 +201,7 @@ def process_event(event: AgentEvent, *, debug: bool = False) -> list[EventAction
     # -- unknown / unhandled events -------------------------------------------
     else:
         if debug:
-            actions.append(
-                EventAction(type="debug", content=repr(event))
-            )
+            actions.append(EventAction(type="debug", content=repr(event)))
         else:
             actions.append(EventAction(type="none"))
 

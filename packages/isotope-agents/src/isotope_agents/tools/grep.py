@@ -78,9 +78,7 @@ def _python_search(
                 with open(filepath, encoding="utf-8", errors="replace") as f:
                     for lineno, line in enumerate(f, 1):
                         if regex.search(line):
-                            results.append(
-                                f"{rel_path}:{lineno}:{line.rstrip()}"
-                            )
+                            results.append(f"{rel_path}:{lineno}:{line.rstrip()}")
                             if len(results) >= max_results:
                                 return "\n".join(results)
             except (PermissionError, OSError):

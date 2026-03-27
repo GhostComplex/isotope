@@ -74,7 +74,10 @@ class TestWebSearchTool:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(return_value=mock_resp)
 
-        with patch("isotope_agents.tools.web_search.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_search.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
             result = await tool.execute("call_1", {"query": "python programming"})
 
         assert not result.is_error
@@ -106,7 +109,10 @@ class TestWebSearchTool:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
 
-        with patch("isotope_agents.tools.web_search.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_search.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
             result = await tool.execute("call_1", {"query": "test"})
 
         assert result.is_error
@@ -123,7 +129,10 @@ class TestWebSearchTool:
             side_effect=httpx.ConnectError("connection refused")
         )
 
-        with patch("isotope_agents.tools.web_search.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_search.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
             result = await tool.execute("call_1", {"query": "test"})
 
         assert result.is_error
@@ -148,7 +157,10 @@ class TestWebSearchTool:
             )
         )
 
-        with patch("isotope_agents.tools.web_search.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_search.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
             result = await tool.execute("call_1", {"query": "test"})
 
         assert result.is_error
@@ -164,10 +176,11 @@ class TestWebSearchTool:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(return_value=mock_resp)
 
-        with patch("isotope_agents.tools.web_search.httpx.AsyncClient", return_value=mock_client):
-            result = await tool.execute(
-                "call_1", {"query": "test", "max_results": 50}
-            )
+        with patch(
+            "isotope_agents.tools.web_search.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            result = await tool.execute("call_1", {"query": "test", "max_results": 50})
 
         assert not result.is_error
         # Should still work — clamped to 10, but HTML only has 3 results
@@ -184,10 +197,11 @@ class TestWebSearchTool:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(return_value=mock_resp)
 
-        with patch("isotope_agents.tools.web_search.httpx.AsyncClient", return_value=mock_client):
-            result = await tool.execute(
-                "call_1", {"query": "test", "max_results": -5}
-            )
+        with patch(
+            "isotope_agents.tools.web_search.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            result = await tool.execute("call_1", {"query": "test", "max_results": -5})
 
         assert not result.is_error
         text = result.content[0].text
@@ -205,7 +219,10 @@ class TestWebSearchTool:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(return_value=mock_resp)
 
-        with patch("isotope_agents.tools.web_search.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_search.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
             result = await tool.execute("call_1", {"query": "xyznonexistent"})
 
         assert not result.is_error
@@ -221,10 +238,11 @@ class TestWebSearchTool:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.post = AsyncMock(return_value=mock_resp)
 
-        with patch("isotope_agents.tools.web_search.httpx.AsyncClient", return_value=mock_client):
-            result = await tool.execute(
-                "call_1", {"query": "test", "max_results": 3}
-            )
+        with patch(
+            "isotope_agents.tools.web_search.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
+            result = await tool.execute("call_1", {"query": "test", "max_results": 3})
 
         assert not result.is_error
         text = result.content[0].text
@@ -292,7 +310,9 @@ class TestWebFetchTool:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await tool.execute("call_1", {"url": "https://example.com/page"})
 
         assert not result.is_error
@@ -320,7 +340,9 @@ class TestWebFetchTool:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await tool.execute("call_1", {"url": "https://example.com/api"})
 
         assert not result.is_error
@@ -332,17 +354,19 @@ class TestWebFetchTool:
     async def test_fetch_plain_text(self) -> None:
         """Plain text content should be returned as-is."""
         tool = self._get_tool()
-        mock_resp = _mock_fetch_response(
-            body=_FETCH_PLAIN, content_type="text/plain"
-        )
+        mock_resp = _mock_fetch_response(body=_FETCH_PLAIN, content_type="text/plain")
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client):
-            result = await tool.execute("call_1", {"url": "https://example.com/file.txt"})
+        with patch(
+            "isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client
+        ):
+            result = await tool.execute(
+                "call_1", {"url": "https://example.com/file.txt"}
+            )
 
         assert not result.is_error
         text = result.content[0].text
@@ -372,7 +396,9 @@ class TestWebFetchTool:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
 
-        with patch("isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await tool.execute("call_1", {"url": "https://example.com"})
 
         assert result.is_error
@@ -397,8 +423,12 @@ class TestWebFetchTool:
             )
         )
 
-        with patch("isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client):
-            result = await tool.execute("call_1", {"url": "https://example.com/missing"})
+        with patch(
+            "isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client
+        ):
+            result = await tool.execute(
+                "call_1", {"url": "https://example.com/missing"}
+            )
 
         assert result.is_error
         assert "404" in result.content[0].text
@@ -407,9 +437,7 @@ class TestWebFetchTool:
     async def test_http_error_500(self) -> None:
         """500 errors should be reported."""
         tool = self._get_tool()
-        mock_resp = _mock_fetch_response(
-            body="Internal Server Error", status_code=500
-        )
+        mock_resp = _mock_fetch_response(body="Internal Server Error", status_code=500)
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -424,7 +452,9 @@ class TestWebFetchTool:
             )
         )
 
-        with patch("isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await tool.execute("call_1", {"url": "https://example.com/error"})
 
         assert result.is_error
@@ -435,16 +465,16 @@ class TestWebFetchTool:
         """Output should be truncated when it exceeds max_chars."""
         tool = self._get_tool()
         long_text = "A" * 50_000
-        mock_resp = _mock_fetch_response(
-            body=long_text, content_type="text/plain"
-        )
+        mock_resp = _mock_fetch_response(body=long_text, content_type="text/plain")
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await tool.execute(
                 "call_1", {"url": "https://example.com/big", "max_chars": 100}
             )
@@ -467,7 +497,9 @@ class TestWebFetchTool:
             side_effect=httpx.ConnectError("connection refused")
         )
 
-        with patch("isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "isotope_agents.tools.web_fetch.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await tool.execute("call_1", {"url": "https://example.com"})
 
         assert result.is_error

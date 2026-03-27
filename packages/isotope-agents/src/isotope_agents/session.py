@@ -34,9 +34,9 @@ class SessionEntry:
     Each entry represents an event or message in the conversation session.
     """
 
-    type: str          # session_start, user_message, assistant_message, tool_call, tool_result, compaction
-    timestamp: str     # ISO 8601
-    data: dict[str, Any]         # type-specific payload
+    type: str  # session_start, user_message, assistant_message, tool_call, tool_result, compaction
+    timestamp: str  # ISO 8601
+    data: dict[str, Any]  # type-specific payload
 
 
 @dataclass
@@ -92,7 +92,7 @@ class SessionStore:
             data={
                 "model": model,
                 "preset": preset,
-            }
+            },
         )
 
         self.append(session_id, start_entry)
@@ -154,11 +154,13 @@ class SessionStore:
                 line = line.strip()
                 if line:
                     entry_dict = json.loads(line)
-                    entries.append(SessionEntry(
-                        type=entry_dict["type"],
-                        timestamp=entry_dict["timestamp"],
-                        data=entry_dict["data"],
-                    ))
+                    entries.append(
+                        SessionEntry(
+                            type=entry_dict["type"],
+                            timestamp=entry_dict["timestamp"],
+                            data=entry_dict["data"],
+                        )
+                    )
 
         return entries
 
@@ -179,7 +181,9 @@ class SessionStore:
                     continue
 
                 # Get session start info
-                start_entry = next((e for e in entries if e.type == "session_start"), None)
+                start_entry = next(
+                    (e for e in entries if e.type == "session_start"), None
+                )
                 if not start_entry:
                     continue
 
@@ -188,7 +192,13 @@ class SessionStore:
                 started_at = start_entry.timestamp
 
                 # Count messages and get last message preview
-                message_count = len([e for e in entries if e.type in ["user_message", "assistant_message"]])
+                message_count = len(
+                    [
+                        e
+                        for e in entries
+                        if e.type in ["user_message", "assistant_message"]
+                    ]
+                )
 
                 # Get last message for preview
                 last_message_preview = ""
@@ -198,20 +208,27 @@ class SessionStore:
                         if content:
                             # Extract text from first text content block
                             for block in content:
-                                if isinstance(block, dict) and block.get("type") == "text":
+                                if (
+                                    isinstance(block, dict)
+                                    and block.get("type") == "text"
+                                ):
                                     text = block.get("text", "").strip()
-                                    last_message_preview = text[:100] + ("..." if len(text) > 100 else "")
+                                    last_message_preview = text[:100] + (
+                                        "..." if len(text) > 100 else ""
+                                    )
                                     break
                         break
 
-                sessions.append(SessionMeta(
-                    id=session_id,
-                    started_at=started_at,
-                    message_count=message_count,
-                    last_message_preview=last_message_preview,
-                    model=model,
-                    preset=preset,
-                ))
+                sessions.append(
+                    SessionMeta(
+                        id=session_id,
+                        started_at=started_at,
+                        message_count=message_count,
+                        last_message_preview=last_message_preview,
+                        model=model,
+                        preset=preset,
+                    )
+                )
 
             except (json.JSONDecodeError, KeyError, FileNotFoundError):
                 # Skip corrupted or invalid session files
@@ -241,16 +258,24 @@ class SessionStore:
                     if block["type"] == "text":
                         content.append(TextContent(text=block["text"]))
                     elif block["type"] == "image":
-                        content.append(ImageContent(
-                            data=block["data"],
-                            mime_type=block["mime_type"]
-                        ))
+                        content.append(
+                            ImageContent(
+                                data=block["data"], mime_type=block["mime_type"]
+                            )
+                        )
 
-                messages.append(UserMessage(
-                    content=content,
-                    timestamp=int(datetime.fromisoformat(entry.timestamp.replace('Z', '+00:00')).timestamp() * 1000),
-                    pinned=data.get("pinned", False),
-                ))
+                messages.append(
+                    UserMessage(
+                        content=content,
+                        timestamp=int(
+                            datetime.fromisoformat(
+                                entry.timestamp.replace("Z", "+00:00")
+                            ).timestamp()
+                            * 1000
+                        ),
+                        pinned=data.get("pinned", False),
+                    )
+                )
 
             elif entry.type == "assistant_message":
                 data = entry.data
@@ -260,17 +285,21 @@ class SessionStore:
                     if block["type"] == "text":
                         content.append(TextContent(text=block["text"]))
                     elif block["type"] == "thinking":
-                        content.append(ThinkingContent(
-                            thinking=block["thinking"],
-                            thinking_signature=block.get("thinking_signature"),
-                            redacted=block.get("redacted", False)
-                        ))
+                        content.append(
+                            ThinkingContent(
+                                thinking=block["thinking"],
+                                thinking_signature=block.get("thinking_signature"),
+                                redacted=block.get("redacted", False),
+                            )
+                        )
                     elif block["type"] == "tool_call":
-                        content.append(ToolCallContent(
-                            id=block["id"],
-                            name=block["name"],
-                            arguments=block["arguments"]
-                        ))
+                        content.append(
+                            ToolCallContent(
+                                id=block["id"],
+                                name=block["name"],
+                                arguments=block["arguments"],
+                            )
+                        )
 
                 usage_data = data.get("usage", {})
                 usage = Usage(
@@ -280,14 +309,21 @@ class SessionStore:
                     cache_write_tokens=usage_data.get("cache_write_tokens", 0),
                 )
 
-                messages.append(AssistantMessage(
-                    content=content,
-                    stop_reason=data.get("stop_reason"),
-                    usage=usage,
-                    error_message=data.get("error_message"),
-                    timestamp=int(datetime.fromisoformat(entry.timestamp.replace('Z', '+00:00')).timestamp() * 1000),
-                    pinned=data.get("pinned", False),
-                ))
+                messages.append(
+                    AssistantMessage(
+                        content=content,
+                        stop_reason=data.get("stop_reason"),
+                        usage=usage,
+                        error_message=data.get("error_message"),
+                        timestamp=int(
+                            datetime.fromisoformat(
+                                entry.timestamp.replace("Z", "+00:00")
+                            ).timestamp()
+                            * 1000
+                        ),
+                        pinned=data.get("pinned", False),
+                    )
+                )
 
             elif entry.type == "tool_result":
                 data = entry.data
@@ -297,19 +333,27 @@ class SessionStore:
                     if block["type"] == "text":
                         content.append(TextContent(text=block["text"]))
                     elif block["type"] == "image":
-                        content.append(ImageContent(
-                            data=block["data"],
-                            mime_type=block["mime_type"]
-                        ))
+                        content.append(
+                            ImageContent(
+                                data=block["data"], mime_type=block["mime_type"]
+                            )
+                        )
 
-                messages.append(ToolResultMessage(
-                    tool_call_id=data["tool_call_id"],
-                    tool_name=data["tool_name"],
-                    content=content,
-                    is_error=data.get("is_error", False),
-                    timestamp=int(datetime.fromisoformat(entry.timestamp.replace('Z', '+00:00')).timestamp() * 1000),
-                    pinned=data.get("pinned", False),
-                ))
+                messages.append(
+                    ToolResultMessage(
+                        tool_call_id=data["tool_call_id"],
+                        tool_name=data["tool_name"],
+                        content=content,
+                        is_error=data.get("is_error", False),
+                        timestamp=int(
+                            datetime.fromisoformat(
+                                entry.timestamp.replace("Z", "+00:00")
+                            ).timestamp()
+                            * 1000
+                        ),
+                        pinned=data.get("pinned", False),
+                    )
+                )
 
             elif entry.type == "compaction":
                 # Treat compaction entries as system-like user messages
@@ -317,13 +361,22 @@ class SessionStore:
                 data = entry.data
                 summary = data.get("summary", "")
                 if summary:
-                    messages.append(UserMessage(
-                        content=[TextContent(
-                            text=f"[Compacted conversation summary]\n{summary}",
-                        )],
-                        timestamp=int(datetime.fromisoformat(entry.timestamp.replace('Z', '+00:00')).timestamp() * 1000),
-                        pinned=True,
-                    ))
+                    messages.append(
+                        UserMessage(
+                            content=[
+                                TextContent(
+                                    text=f"[Compacted conversation summary]\n{summary}",
+                                )
+                            ],
+                            timestamp=int(
+                                datetime.fromisoformat(
+                                    entry.timestamp.replace("Z", "+00:00")
+                                ).timestamp()
+                                * 1000
+                            ),
+                            pinned=True,
+                        )
+                    )
 
         return messages
 
@@ -344,11 +397,13 @@ class SessionStore:
                 if isinstance(block, TextContent):
                     content.append({"type": "text", "text": block.text})
                 elif isinstance(block, ImageContent):
-                    content.append({
-                        "type": "image",
-                        "data": block.data,
-                        "mime_type": block.mime_type
-                    })
+                    content.append(
+                        {
+                            "type": "image",
+                            "data": block.data,
+                            "mime_type": block.mime_type,
+                        }
+                    )
 
             return SessionEntry(
                 type="user_message",
@@ -356,7 +411,7 @@ class SessionStore:
                 data={
                     "content": content,
                     "pinned": message.pinned,
-                }
+                },
             )
 
         elif isinstance(message, AssistantMessage):
@@ -365,19 +420,23 @@ class SessionStore:
                 if isinstance(block, TextContent):
                     content.append({"type": "text", "text": block.text})
                 elif isinstance(block, ThinkingContent):
-                    content.append({
-                        "type": "thinking",
-                        "thinking": block.thinking,
-                        "thinking_signature": block.thinking_signature,
-                        "redacted": block.redacted
-                    })
+                    content.append(
+                        {
+                            "type": "thinking",
+                            "thinking": block.thinking,
+                            "thinking_signature": block.thinking_signature,
+                            "redacted": block.redacted,
+                        }
+                    )
                 elif isinstance(block, ToolCallContent):
-                    content.append({
-                        "type": "tool_call",
-                        "id": block.id,
-                        "name": block.name,
-                        "arguments": block.arguments
-                    })
+                    content.append(
+                        {
+                            "type": "tool_call",
+                            "id": block.id,
+                            "name": block.name,
+                            "arguments": block.arguments,
+                        }
+                    )
 
             return SessionEntry(
                 type="assistant_message",
@@ -393,7 +452,7 @@ class SessionStore:
                     },
                     "error_message": message.error_message,
                     "pinned": message.pinned,
-                }
+                },
             )
 
         elif isinstance(message, ToolResultMessage):
@@ -402,11 +461,13 @@ class SessionStore:
                 if isinstance(block, TextContent):
                     content.append({"type": "text", "text": block.text})
                 elif isinstance(block, ImageContent):
-                    content.append({
-                        "type": "image",
-                        "data": block.data,
-                        "mime_type": block.mime_type
-                    })
+                    content.append(
+                        {
+                            "type": "image",
+                            "data": block.data,
+                            "mime_type": block.mime_type,
+                        }
+                    )
 
             return SessionEntry(
                 type="tool_result",
@@ -417,7 +478,7 @@ class SessionStore:
                     "content": content,
                     "is_error": message.is_error,
                     "pinned": message.pinned,
-                }
+                },
             )
 
         else:

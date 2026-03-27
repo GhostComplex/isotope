@@ -58,23 +58,16 @@ class TestLoadConfig:
         monkeypatch.setenv("TEST_URL", "http://env-host:9090")
         cfg_file = tmp_path / "config.yaml"
         cfg_file.write_text(
-            "provider:\n"
-            "  base_url: ${TEST_URL}\n"
-            "  api_key: ${TEST_API_KEY}\n"
+            "provider:\n  base_url: ${TEST_URL}\n  api_key: ${TEST_API_KEY}\n"
         )
         config = load_config(cfg_file)
         assert config.provider.api_key == "sk-from-env"
         assert config.provider.base_url == "http://env-host:9090"
 
-    def test_env_var_not_set_keeps_placeholder(
-        self, tmp_path: Path
-    ) -> None:
+    def test_env_var_not_set_keeps_placeholder(self, tmp_path: Path) -> None:
         """Unset env vars keep the ${VAR} placeholder."""
         cfg_file = tmp_path / "config.yaml"
-        cfg_file.write_text(
-            "provider:\n"
-            "  api_key: ${NONEXISTENT_VAR_12345}\n"
-        )
+        cfg_file.write_text("provider:\n  api_key: ${NONEXISTENT_VAR_12345}\n")
         config = load_config(cfg_file)
         assert config.provider.api_key == "${NONEXISTENT_VAR_12345}"
 
@@ -100,11 +93,7 @@ class TestLoadConfig:
     def test_tools_in_config(self, tmp_path: Path) -> None:
         """Tools list is loaded from YAML config."""
         cfg_file = tmp_path / "config.yaml"
-        cfg_file.write_text(
-            "tools:\n"
-            "  - mypackage.tools.custom\n"
-            "  - another.module\n"
-        )
+        cfg_file.write_text("tools:\n  - mypackage.tools.custom\n  - another.module\n")
         config = load_config(cfg_file)
         assert config.tools == ["mypackage.tools.custom", "another.module"]
 
