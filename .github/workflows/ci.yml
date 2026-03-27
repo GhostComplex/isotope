@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies (core)
+        run: uv sync --package isotope-core --python ${{ matrix.python-version }}
+
+      - name: Test isotope-core
+        run: uv run --package isotope-core pytest packages/isotope-core/tests/ -m "not integration" -q
+
+      - name: Install dependencies (agents + TUI)
+        run: uv sync --package isotope-agents --extra tui --python ${{ matrix.python-version }}
+
+      - name: Test isotope-agents
+        run: uv run --package isotope-agents pytest packages/isotope-agents/tests/ -q
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --package isotope-core
+
+      - name: Ruff check
+        run: uv run ruff check packages/
+
+      - name: Ruff format check
+        run: uv run ruff format --check packages/
+        continue-on-error: true  # TODO: fix existing format issues, then enforce
