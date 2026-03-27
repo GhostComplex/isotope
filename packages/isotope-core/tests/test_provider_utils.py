@@ -280,6 +280,7 @@ class TestRetryWithBackoffEdgeCases:
     @pytest.mark.asyncio
     async def test_retry_unreachable_path(self) -> None:
         """Test the unreachable code path (last_error is None — defensive check)."""
+
         # This tests lines 190-192: the "should never reach here" fallback.
         # In practice this path is unreachable, but we test config edge cases.
         @retry_with_backoff(RetryConfig(max_retries=0))

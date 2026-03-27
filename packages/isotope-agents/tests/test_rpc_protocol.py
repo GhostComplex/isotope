@@ -102,8 +102,14 @@ class TestCommandTypes:
     def test_all_commands_inherit_rpc_command(self) -> None:
         """Every command subclass is an RpcCommand."""
         classes = [
-            PromptCommand, SteerCommand, FollowUpCommand, AbortCommand,
-            GetStateCommand, SetModelCommand, CompactCommand, NewSessionCommand,
+            PromptCommand,
+            SteerCommand,
+            FollowUpCommand,
+            AbortCommand,
+            GetStateCommand,
+            SetModelCommand,
+            CompactCommand,
+            NewSessionCommand,
         ]
         for cls in classes:
             assert issubclass(cls, RpcCommand)
@@ -194,8 +200,13 @@ class TestEventTypes:
     def test_all_events_inherit_rpc_event(self) -> None:
         """Every event subclass is an RpcEvent."""
         classes = [
-            AgentStartRpcEvent, TextDeltaRpcEvent, ToolCallStartRpcEvent,
-            ToolCallEndRpcEvent, AgentEndRpcEvent, StateRpcEvent, ErrorRpcEvent,
+            AgentStartRpcEvent,
+            TextDeltaRpcEvent,
+            ToolCallStartRpcEvent,
+            ToolCallEndRpcEvent,
+            AgentEndRpcEvent,
+            StateRpcEvent,
+            ErrorRpcEvent,
         ]
         for cls in classes:
             assert issubclass(cls, RpcEvent)
@@ -296,12 +307,14 @@ class TestParseCommand:
 
     def test_parse_command_prompt_with_images(self) -> None:
         """parse_command correctly deserialises a prompt with images."""
-        line = json.dumps({
-            "type": "prompt",
-            "id": "img-1",
-            "content": "Describe this",
-            "images": ["base64data1", "base64data2"],
-        })
+        line = json.dumps(
+            {
+                "type": "prompt",
+                "id": "img-1",
+                "content": "Describe this",
+                "images": ["base64data1", "base64data2"],
+            }
+        )
         cmd = parse_command(line)
         assert isinstance(cmd, PromptCommand)
         assert cmd.images == ["base64data1", "base64data2"]

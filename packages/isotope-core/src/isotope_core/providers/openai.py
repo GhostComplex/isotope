@@ -524,9 +524,7 @@ class OpenAIProvider:
                                 block.name = tool_call.function.name
                             if tool_call.function.arguments:
                                 partial_tool_args[tc_index] += tool_call.function.arguments
-                                block.arguments = _parse_streaming_json(
-                                    partial_tool_args[tc_index]
-                                )
+                                block.arguments = _parse_streaming_json(partial_tool_args[tc_index])
 
                                 yield StreamToolCallDeltaEvent(
                                     content_index=content_idx,

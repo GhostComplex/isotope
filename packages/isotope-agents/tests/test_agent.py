@@ -34,9 +34,7 @@ class TestIsotopeAgent:
 
     def test_assistant_preset(self) -> None:
         """Assistant preset excludes write/edit."""
-        agent = IsotopeAgent(
-            provider=self._mock_provider(), preset="assistant"
-        )
+        agent = IsotopeAgent(provider=self._mock_provider(), preset="assistant")
         assert agent.preset.name == "assistant"
         tool_names = {t.name for t in agent.tools}
         assert "write_file" not in tool_names
@@ -44,17 +42,13 @@ class TestIsotopeAgent:
 
     def test_minimal_preset(self) -> None:
         """Minimal preset has bash only."""
-        agent = IsotopeAgent(
-            provider=self._mock_provider(), preset="minimal"
-        )
+        agent = IsotopeAgent(provider=self._mock_provider(), preset="minimal")
         tool_names = {t.name for t in agent.tools}
         assert tool_names == {"bash"}
 
     def test_preset_instance(self) -> None:
         """Accept Preset instance directly."""
-        agent = IsotopeAgent(
-            provider=self._mock_provider(), preset=ASSISTANT
-        )
+        agent = IsotopeAgent(provider=self._mock_provider(), preset=ASSISTANT)
         assert agent.preset is ASSISTANT
 
     def test_custom_system_prompt(self) -> None:
@@ -98,9 +92,7 @@ class TestIsotopeAgent:
     def test_invalid_preset_name(self) -> None:
         """Invalid preset name raises KeyError."""
         with pytest.raises(KeyError):
-            IsotopeAgent(
-                provider=self._mock_provider(), preset="nonexistent"
-            )
+            IsotopeAgent(provider=self._mock_provider(), preset="nonexistent")
 
     def test_core_property(self) -> None:
         """Core property exposes the underlying Agent."""
@@ -351,7 +343,9 @@ class TestIsotopeAgent:
         agent.core.prompt = mock_run
 
         # Patch compact to track the call
-        with patch.object(agent, "compact", return_value=mock_compact_result) as mock_compact:
+        with patch.object(
+            agent, "compact", return_value=mock_compact_result
+        ) as mock_compact:
             events = []
             async for event in agent.run("test"):
                 events.append(event)

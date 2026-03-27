@@ -55,7 +55,7 @@ class TestSessionStore:
             data={
                 "content": [{"type": "text", "text": "Hello, world!"}],
                 "pinned": False,
-            }
+            },
         )
 
         assistant_entry = SessionEntry(
@@ -72,7 +72,7 @@ class TestSessionStore:
                 },
                 "error_message": None,
                 "pinned": False,
-            }
+            },
         )
 
         # Append entries
@@ -91,7 +91,9 @@ class TestSessionStore:
         # Verify assistant message entry
         assistant_loaded = entries[2]
         assert assistant_loaded.type == "assistant_message"
-        assert assistant_loaded.data["content"][0]["text"] == "Hello! How can I help you?"
+        assert (
+            assistant_loaded.data["content"][0]["text"] == "Hello! How can I help you?"
+        )
         assert assistant_loaded.data["usage"]["input_tokens"] == 10
 
     def test_list_sessions(self, tmp_path: Path) -> None:
@@ -100,25 +102,36 @@ class TestSessionStore:
 
         # Create first session
         session_id1 = store.create(model="model1", preset="preset1")
-        store.append(session_id1, SessionEntry(
-            type="user_message",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            data={
-                "content": [{"type": "text", "text": "First message"}],
-                "pinned": False,
-            }
-        ))
+        store.append(
+            session_id1,
+            SessionEntry(
+                type="user_message",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                data={
+                    "content": [{"type": "text", "text": "First message"}],
+                    "pinned": False,
+                },
+            ),
+        )
 
         # Create second session
         session_id2 = store.create(model="model2", preset="preset2")
-        store.append(session_id2, SessionEntry(
-            type="user_message",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            data={
-                "content": [{"type": "text", "text": "Second message with longer text content"}],
-                "pinned": False,
-            }
-        ))
+        store.append(
+            session_id2,
+            SessionEntry(
+                type="user_message",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                data={
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Second message with longer text content",
+                        }
+                    ],
+                    "pinned": False,
+                },
+            ),
+        )
 
         # List sessions
         sessions = store.list_sessions()
@@ -140,7 +153,10 @@ class TestSessionStore:
         assert session2_meta.model == "model2"
         assert session2_meta.preset == "preset2"
         assert session2_meta.message_count == 1
-        assert "Second message with longer text content" in session2_meta.last_message_preview
+        assert (
+            "Second message with longer text content"
+            in session2_meta.last_message_preview
+        )
 
     def test_entries_to_messages_conversion(self, tmp_path: Path) -> None:
         """Test entries_to_messages converts back to isotope-core message objects."""
@@ -157,10 +173,8 @@ class TestSessionStore:
             content=[
                 TextContent(text="Test response"),
                 ToolCallContent(
-                    id="call_123",
-                    name="test_tool",
-                    arguments={"arg1": "value1"}
-                )
+                    id="call_123", name="test_tool", arguments={"arg1": "value1"}
+                ),
             ],
             usage=Usage(input_tokens=10, output_tokens=20),
             timestamp=1234567890001,
@@ -246,9 +260,9 @@ class TestSessionStore:
                 ThinkingContent(
                     thinking="I need to think about this...",
                     thinking_signature="test_signature",
-                    redacted=False
+                    redacted=False,
                 ),
-                TextContent(text="Here's my response")
+                TextContent(text="Here's my response"),
             ],
             usage=Usage(),
             timestamp=1234567890000,
@@ -278,14 +292,17 @@ class TestSessionStore:
 
         # Create long message
         long_text = "A" * 150  # Longer than 100 chars
-        store.append(session_id, SessionEntry(
-            type="user_message",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            data={
-                "content": [{"type": "text", "text": long_text}],
-                "pinned": False,
-            }
-        ))
+        store.append(
+            session_id,
+            SessionEntry(
+                type="user_message",
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                data={
+                    "content": [{"type": "text", "text": long_text}],
+                    "pinned": False,
+                },
+            ),
+        )
 
         sessions = store.list_sessions()
         assert len(sessions) == 1
@@ -349,7 +366,10 @@ class TestSessionStore:
         entries = store.load(session_id)
         assert len(entries) == 2  # session_start + compaction
         assert entries[1].type == "compaction"
-        assert entries[1].data["summary"] == "User asked to write a hello world script. Assistant created hello.py."
+        assert (
+            entries[1].data["summary"]
+            == "User asked to write a hello world script. Assistant created hello.py."
+        )
         assert entries[1].data["files_read"] == ["hello.py", "README.md"]
         assert entries[1].data["files_modified"] == ["hello.py"]
         assert entries[1].data["messages_compacted"] == 8
@@ -358,7 +378,9 @@ class TestSessionStore:
 
         # Convert to messages — compaction should become a pinned UserMessage
         messages = store.entries_to_messages(entries)
-        assert len(messages) == 1  # only the compaction entry becomes a message (session_start is skipped)
+        assert (
+            len(messages) == 1
+        )  # only the compaction entry becomes a message (session_start is skipped)
 
         compaction_msg = messages[0]
         assert isinstance(compaction_msg, UserMessage)
