@@ -674,6 +674,7 @@ class TUI:
                 break
             except KeyboardInterrupt:
                 # Ctrl+C — clear current input, continue
+                self._input_handler.clear_prefill_text()
                 continue
 
             line = line.strip()
