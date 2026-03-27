@@ -40,6 +40,7 @@ async def bash(command: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult:
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except TimeoutError:
             proc.kill()
+            await proc.wait()
             return ToolResult.error(f"Command timed out after {timeout}s")
         output = stdout.decode("utf-8", errors="replace") if stdout else ""
         output = truncate_output(output, max_chars=MAX_OUTPUT_CHARS, strategy="tail")

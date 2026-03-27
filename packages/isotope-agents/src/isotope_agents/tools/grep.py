@@ -47,7 +47,11 @@ async def _rg_search(
             return ""  # no matches
         # rg error
         return None
-    except (FileNotFoundError, TimeoutError):
+    except FileNotFoundError:
+        return None
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
         return None
 
 
