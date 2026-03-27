@@ -585,7 +585,7 @@ class TUI:
             "\nWelcome to Isotope! Let's configure your AI provider.",
             style="info",
         )
-        _print("(Ctrl+C to cancel)\n", style="dim")
+        _print("(Ctrl+D to cancel)\n", style="dim")
 
         # Provider selection
         _print("Choose a provider:", style="info")
