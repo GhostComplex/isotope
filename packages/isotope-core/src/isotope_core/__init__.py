@@ -213,7 +213,7 @@ __all__ = [
     "ToolEndEvent",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Graceful imports for optional provider dependencies
 try:

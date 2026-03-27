@@ -379,7 +379,7 @@ all = ["isotope-core[openai,anthropic,tiktoken]"]
 
 ```toml
 [project]
-dependencies = ["isotope-core>=0.1.0"]
+dependencies = ["isotope-core>=0.1.1"]
 
 [project.optional-dependencies]
 tui = ["prompt-toolkit>=3.0", "rich>=13.0"]
