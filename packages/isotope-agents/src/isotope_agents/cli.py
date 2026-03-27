@@ -12,21 +12,23 @@ import os
 import sys
 from typing import NoReturn
 
-from isotope_core.providers.proxy import ProxyProvider
 from isotope_core.types import AgentEvent, AssistantMessage
 
 from isotope_agents import __version__
 from isotope_agents.agent import IsotopeAgent
-from isotope_agents.config import load_config
+from isotope_agents.config import (
+    PROVIDER_DEFAULTS,
+    create_provider,
+    detect_provider_from_env,
+    load_config,
+)
 from isotope_agents.presets import get_preset
 from isotope_agents.rpc.server import RpcServer
 from isotope_agents.session import SessionStore
 
 
 # Default configuration values
-DEFAULT_MODEL = "claude-opus-4.6"
 DEFAULT_PRESET = "coding"
-PROXY_BASE_URL = "http://localhost:4141/v1"
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -45,8 +47,8 @@ def create_parser() -> argparse.ArgumentParser:
     # Global options
     parser.add_argument(
         "--model",
-        default=DEFAULT_MODEL,
-        help=f"Model to use (default: {DEFAULT_MODEL})",
+        default=None,
+        help="Model to use (overrides config)",
     )
 
     parser.add_argument(
@@ -54,6 +56,13 @@ def create_parser() -> argparse.ArgumentParser:
         choices=["coding", "assistant", "minimal"],
         default=DEFAULT_PRESET,
         help=f"Preset configuration to use (default: {DEFAULT_PRESET})",
+    )
+
+    parser.add_argument(
+        "--provider",
+        choices=["openai", "anthropic", "minimax", "minimax-global", "proxy"],
+        default=None,
+        help="Provider type override for this session",
     )
 
     parser.add_argument(
@@ -115,6 +124,7 @@ async def run_one_shot(
     model: str,
     preset: str,
     no_tools: bool,
+    provider_type: str | None = None,
 ) -> None:
     """Execute a one-shot prompt and stream the response to stdout.
 
@@ -123,14 +133,39 @@ async def run_one_shot(
         model: Model name to use.
         preset: Preset configuration name.
         no_tools: Whether to disable tools.
+        provider_type: Optional provider type override.
     """
     try:
-        # Create provider
-        provider = ProxyProvider(
-            model=model,
-            base_url=PROXY_BASE_URL,
-            api_key="not-needed",
-        )
+        config = load_config()
+
+        # Apply provider override
+        if provider_type:
+            defaults = PROVIDER_DEFAULTS.get(provider_type, {})
+            config.provider.type = provider_type
+            config.provider.base_url = defaults.get(
+                "base_url", config.provider.base_url
+            )
+
+        # Resolve model
+        effective_model = model or (config.model if config.model != "default" else None)
+        if not effective_model:
+            defaults = PROVIDER_DEFAULTS.get(
+                config.provider.type, PROVIDER_DEFAULTS["proxy"]
+            )
+            effective_model = defaults["default_model"]
+
+        # Env var notice
+        env_config = detect_provider_from_env()
+        if env_config and config.provider.type != "proxy" or config.provider.api_key:
+            pass  # Config file or explicit key — no notice
+        elif env_config:
+            print(
+                f"Using {env_config.provider.type} (from env). "
+                "Run /setup in chat to configure.",
+                file=sys.stderr,
+            )
+
+        provider = create_provider(effective_model, config)
 
         # Get preset configuration
         preset_config = get_preset(preset)
@@ -139,7 +174,7 @@ async def run_one_shot(
         agent = IsotopeAgent(
             provider=provider,
             preset=preset_config,
-            model=model,
+            model=effective_model,
             workspace=os.getcwd(),
         )
 
@@ -205,23 +240,43 @@ def handle_agent_event(event: AgentEvent) -> None:
 
 
 def launch_tui(
-    model: str, preset: str, no_tools: bool, session_id: str | None = None
+    model: str | None,
+    preset: str,
+    no_tools: bool,
+    session_id: str | None = None,
+    provider_type: str | None = None,
 ) -> None:
     """Launch the TUI interface.
 
     Args:
-        model: Model name to use.
+        model: Model name to use (None = use config default).
         preset: Preset configuration name.
         no_tools: Whether to disable tools.
         session_id: Optional session ID to resume.
+        provider_type: Optional provider type override.
     """
     try:
         # Import TUI here to avoid import errors if dependencies aren't installed
         from isotope_agents.tui.app import TUI
 
+        config = load_config()
+
+        # Apply provider override
+        if provider_type:
+            defaults = PROVIDER_DEFAULTS.get(provider_type, {})
+            config.provider.type = provider_type
+            config.provider.base_url = defaults.get(
+                "base_url", config.provider.base_url
+            )
+
+        # Resolve model
+        effective_model = model or (config.model if config.model != "default" else None)
+
         # Create and configure TUI
         tui = TUI()
-        tui.model = model
+        tui.config = config
+        if effective_model:
+            tui.model = effective_model
         tui.preset = get_preset(preset)
         tui.tools_enabled = not no_tools
 
@@ -286,7 +341,7 @@ def list_sessions(limit: int = 10) -> None:
         sys.exit(1)
 
 
-def run_rpc(model: str, preset: str, session_id: str | None = None) -> None:
+def run_rpc(model: str | None, preset: str, session_id: str | None = None) -> None:
     """Start the JSONL-over-stdio RPC server.
 
     Loads config, creates an IsotopeAgent, wraps it in an RpcServer,
@@ -294,7 +349,7 @@ def run_rpc(model: str, preset: str, session_id: str | None = None) -> None:
     that stdout is reserved exclusively for JSONL events.
 
     Args:
-        model: Model name to use.
+        model: Model name to use (None = use config default).
         preset: Preset configuration name.
         session_id: Optional session ID to resume.
     """
@@ -307,18 +362,15 @@ def run_rpc(model: str, preset: str, session_id: str | None = None) -> None:
 
     config = load_config()
 
-    # CLI flags override config-file values
-    effective_model = (
-        model
-        if model != DEFAULT_MODEL
-        else (config.model if config.model != "default" else DEFAULT_MODEL)
-    )
+    # Resolve model
+    effective_model = model or (config.model if config.model != "default" else None)
+    if not effective_model:
+        defaults = PROVIDER_DEFAULTS.get(
+            config.provider.type, PROVIDER_DEFAULTS["proxy"]
+        )
+        effective_model = defaults["default_model"]
 
-    provider = ProxyProvider(
-        model=effective_model,
-        base_url=config.provider.base_url + "/v1",
-        api_key=config.provider.api_key or "not-needed",
-    )
+    provider = create_provider(effective_model, config)
 
     preset_config = get_preset(preset)
 
@@ -346,7 +398,13 @@ def main() -> NoReturn:
 
     if args.command == "chat":
         session_id = getattr(args, "session", None)
-        launch_tui(args.model, args.preset, args.no_tools, session_id)
+        launch_tui(
+            args.model,
+            args.preset,
+            args.no_tools,
+            session_id,
+            provider_type=args.provider,
+        )
 
     elif args.command == "run":
         try:
@@ -356,6 +414,7 @@ def main() -> NoReturn:
                     args.model,
                     args.preset,
                     args.no_tools,
+                    provider_type=args.provider,
                 )
             )
             sys.exit(0)

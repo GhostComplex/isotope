@@ -97,6 +97,12 @@ class TestCLI:
         args = parser.parse_args(["--model", "claude-opus-4.6", "chat"])
         assert args.model == "claude-opus-4.6"
 
+    def test_provider_option_parsing(self) -> None:
+        """Provider option is parsed correctly."""
+        parser = create_parser()
+        args = parser.parse_args(["--provider", "anthropic", "chat"])
+        assert args.provider == "anthropic"
+
     def test_preset_option_parsing(self) -> None:
         """Preset option is parsed correctly."""
         parser = create_parser()
@@ -120,9 +126,10 @@ class TestCLI:
         """Default values are set correctly."""
         parser = create_parser()
         args = parser.parse_args(["chat"])
-        assert args.model == "claude-opus-4.6"
+        assert args.model is None  # defaults to config
         assert args.preset == "coding"
         assert args.no_tools is False
+        assert args.provider is None
 
     def test_rpc_command_parses(self) -> None:
         """RPC command parses correctly."""
@@ -405,14 +412,13 @@ class TestMainDispatch:
     def test_main_chat_dispatches_to_launch_tui(self, mock_tui: MagicMock) -> None:
         """main() with 'chat' dispatches to launch_tui."""
         with patch("sys.argv", ["isotope", "chat"]):
-            # chat path calls launch_tui without sys.exit, so it may or may not raise
             try:
                 main()
             except SystemExit:
                 pass
         mock_tui.assert_called_once()
         call_args = mock_tui.call_args
-        assert call_args[0][0] == "claude-opus-4.6"  # model default
+        assert call_args[0][0] is None  # model default (None = use config)
         assert call_args[0][1] == "coding"  # preset default
         assert call_args[0][2] is False  # no_tools default
 
@@ -467,24 +473,27 @@ class TestRunRpc:
     @patch("isotope_agents.cli.RpcServer")
     @patch("isotope_agents.cli.IsotopeAgent")
     @patch("isotope_agents.cli.get_preset")
-    @patch("isotope_agents.cli.ProxyProvider")
+    @patch("isotope_agents.cli.create_provider")
     @patch("isotope_agents.cli.load_config")
     def test_run_rpc_wires_agent_and_server(
         self,
         mock_load_config: MagicMock,
-        mock_provider_cls: MagicMock,
+        mock_create_provider: MagicMock,
         mock_get_preset: MagicMock,
         mock_agent_cls: MagicMock,
         mock_server_cls: MagicMock,
         mock_asyncio: MagicMock,
     ) -> None:
-        """run_rpc creates a ProxyProvider, IsotopeAgent, and RpcServer then runs it."""
-        # Setup config mock
+        """run_rpc creates a provider, IsotopeAgent, and RpcServer then runs it."""
         mock_config = MagicMock()
         mock_config.model = "default"
-        mock_config.provider.base_url = "http://localhost:4141"
-        mock_config.provider.api_key = "test-key"
+        mock_config.provider.type = "proxy"
+        mock_config.provider.base_url = "http://localhost:4141/v1"
+        mock_config.provider.api_key = ""
         mock_load_config.return_value = mock_config
+
+        mock_provider = MagicMock()
+        mock_create_provider.return_value = mock_provider
 
         mock_preset = MagicMock()
         mock_get_preset.return_value = mock_preset
@@ -497,44 +506,43 @@ class TestRunRpc:
 
         run_rpc("claude-opus-4.6", "coding", session_id="sess1")
 
-        # Provider created
-        mock_provider_cls.assert_called_once()
-        # Agent created with provider, preset, and session_id
+        mock_create_provider.assert_called_once()
         mock_agent_cls.assert_called_once()
         agent_kwargs = mock_agent_cls.call_args
         assert agent_kwargs.kwargs.get("session_id") == "sess1"
-        # Server wraps agent
         mock_server_cls.assert_called_once_with(mock_agent)
-        # asyncio.run called with server.run()
         mock_asyncio.run.assert_called_once_with(mock_server.run())
 
     @patch("isotope_agents.cli.asyncio")
     @patch("isotope_agents.cli.RpcServer")
     @patch("isotope_agents.cli.IsotopeAgent")
     @patch("isotope_agents.cli.get_preset")
-    @patch("isotope_agents.cli.ProxyProvider")
+    @patch("isotope_agents.cli.create_provider")
     @patch("isotope_agents.cli.load_config")
     def test_run_rpc_cli_model_overrides_config(
         self,
         mock_load_config: MagicMock,
-        mock_provider_cls: MagicMock,
+        mock_create_provider: MagicMock,
         mock_get_preset: MagicMock,
         mock_agent_cls: MagicMock,
         mock_server_cls: MagicMock,
         mock_asyncio: MagicMock,
     ) -> None:
-        """run_rpc uses CLI model when it differs from the default."""
+        """run_rpc uses CLI model when provided."""
         mock_config = MagicMock()
         mock_config.model = "config-model"
-        mock_config.provider.base_url = "http://localhost:4141"
-        mock_config.provider.api_key = None
+        mock_config.provider.type = "proxy"
+        mock_config.provider.base_url = "http://localhost:4141/v1"
+        mock_config.provider.api_key = ""
         mock_load_config.return_value = mock_config
+
+        mock_create_provider.return_value = MagicMock()
 
         run_rpc("claude-sonnet-4-20250514", "coding")
 
-        # The CLI-specified model should be used (it's not DEFAULT_MODEL)
-        provider_call = mock_provider_cls.call_args
-        assert provider_call.kwargs.get("model") == "claude-sonnet-4-20250514"
+        # The CLI-specified model should be used
+        call_args = mock_create_provider.call_args
+        assert call_args[0][0] == "claude-sonnet-4-20250514"
 
 
 class TestListSessionsEdgeCases:

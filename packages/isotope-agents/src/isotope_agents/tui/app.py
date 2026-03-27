@@ -16,10 +16,15 @@ from collections.abc import AsyncGenerator
 # Bypass system HTTP proxies (e.g. Clash) for localhost
 os.environ.setdefault("NO_PROXY", "localhost,127.0.0.1,::1")
 
-from isotope_core.providers.proxy import ProxyProvider
 from isotope_core.types import AgentEvent, AssistantMessage
 
 from isotope_agents.agent import IsotopeAgent
+from isotope_agents.config import (
+    PROVIDER_DEFAULTS,
+    IsotopeConfig,
+    create_provider,
+    save_config,
+)
 from isotope_agents.presets import CODING
 from isotope_agents.session import SessionStore
 
@@ -34,8 +39,13 @@ from .render import (
     render_tool_output,
 )
 
-PROXY_BASE_URL = "http://localhost:4141/v1"
-DEFAULT_MODEL = "claude-opus-4.6"
+PROVIDER_LABELS = {
+    "anthropic": "Anthropic        (claude-opus-4, claude-sonnet-4, ...)",
+    "openai": "OpenAI           (gpt-4.1, o3, ...)",
+    "minimax": "MiniMax CN       (MiniMax-M1, api.minimaxi.com)",
+    "minimax-global": "MiniMax Global   (MiniMax-M1, api.minimax.io)",
+    "proxy": "OpenAI-compatible proxy  (localhost, LiteLLM, Ollama, ...)",
+}
 
 # Workspace directory — all relative file paths are resolved against this.
 WORKSPACE = os.getcwd()
@@ -44,26 +54,6 @@ WORKSPACE = os.getcwd()
 # ---------------------------------------------------------------------------
 # Model listing
 # ---------------------------------------------------------------------------
-
-
-async def _fetch_models(base_url: str) -> list[str]:
-    """Fetch available models from the proxy."""
-    import httpx
-
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{base_url}/models")
-            resp.raise_for_status()
-            data = resp.json()
-            models: list[str] = []
-            for m in data.get("data", []):
-                mid = m.get("id", "")
-                if mid:
-                    models.append(mid)
-            return sorted(models)
-    except Exception as exc:
-        _print(f"Warning: could not fetch models: {exc}", style="warn")
-        return []
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +65,7 @@ class TUI:
     """Interactive TUI for isotope-agents."""
 
     def __init__(self) -> None:
-        self._state = TUIState(model=DEFAULT_MODEL, preset=CODING)
+        self._state = TUIState(model="", preset=CODING)
         self._command_handler = CommandHandler(self._state)
         self.agent: IsotopeAgent | None = None
         self.session_store = SessionStore()
@@ -85,6 +75,7 @@ class TUI:
         self._input_handler = StreamInputHandler()
         self.resume_session_id: str | None = None  # session to resume
         self._streamed_text: bool = False  # tracks if text deltas were emitted
+        self.config: IsotopeConfig = IsotopeConfig()  # provider config
 
     # -- convenience accessors for state fields used throughout the class ----
 
@@ -352,11 +343,7 @@ class TUI:
         Args:
             session_id: Optional session ID to resume.
         """
-        provider = ProxyProvider(
-            model=self.model,
-            base_url=PROXY_BASE_URL,
-            api_key="not-needed",
-        )
+        provider = create_provider(self.model, self.config)
 
         # Use minimal preset when tools are disabled, otherwise use the current preset
         preset = "minimal" if not self.tools_enabled else self.preset
@@ -403,39 +390,6 @@ class TUI:
         self.agent = self._create_agent(old_session_id)
         if old_messages:
             self.agent.core.replace_messages(old_messages)
-
-    async def _select_model(self, models: list[str]) -> str:
-        """Let the user pick a model or accept the default."""
-        if models:
-            _print("\nAvailable models:", style="info")
-            for i, m in enumerate(models, 1):
-                marker = " (default)" if m == DEFAULT_MODEL else ""
-                _print(f"  {i}. {m}{marker}", style="dim")
-
-            choice = await self._input_handler.get_user_input(
-                f"\nSelect model [Enter for {DEFAULT_MODEL}]: "
-            )
-
-            choice = choice.strip()
-            if not choice:
-                return DEFAULT_MODEL
-
-            # Accept number or name
-            try:
-                idx = int(choice) - 1
-                if 0 <= idx < len(models):
-                    return models[idx]
-            except ValueError:
-                pass
-
-            # Accept partial name match
-            for m in models:
-                if choice.lower() in m.lower():
-                    return m
-
-            _print(f"Unknown model '{choice}', using {DEFAULT_MODEL}", style="warn")
-            return DEFAULT_MODEL
-        return DEFAULT_MODEL
 
     async def _get_system_prompt(self) -> str:
         """Prompt user for system prompt."""
@@ -621,16 +575,108 @@ class TUI:
                 style="dim",
             )
 
+    async def _run_setup_wizard(self) -> IsotopeConfig:
+        """Interactive first-run setup wizard.
+
+        Returns the configured IsotopeConfig (also saves to disk).
+        """
+        _print(
+            "\nWelcome to Isotope! Let's configure your AI provider.\n", style="info"
+        )
+
+        # Provider selection
+        _print("Choose a provider:", style="info")
+        provider_keys = list(PROVIDER_LABELS.keys())
+        for i, key in enumerate(provider_keys, 1):
+            _print(f"  {i}. {PROVIDER_LABELS[key]}", style="dim")
+
+        choice = await self._input_handler.get_user_input("\nProvider [1]: ")
+        choice = choice.strip()
+        try:
+            idx = int(choice) - 1 if choice else 0
+            if not (0 <= idx < len(provider_keys)):
+                idx = 0
+        except ValueError:
+            idx = 0
+        ptype = provider_keys[idx]
+        defaults = PROVIDER_DEFAULTS[ptype]
+
+        # Base URL (only ask for proxy)
+        base_url = defaults["base_url"]
+        if ptype == "proxy":
+            custom_url = await self._input_handler.get_user_input(
+                f"Base URL [{base_url}]: "
+            )
+            if custom_url.strip():
+                base_url = custom_url.strip()
+
+        # API key
+        api_key = ""
+        if ptype != "proxy":
+            env_var = defaults.get("env_key", "")
+            env_val = os.environ.get(env_var, "") if env_var else ""
+            hint = f" (or set {env_var})" if env_var else ""
+            if env_val:
+                api_key = await self._input_handler.get_user_input(
+                    f"API key [from {env_var}]: "
+                )
+                if not api_key.strip():
+                    api_key = env_val
+            else:
+                api_key = await self._input_handler.get_user_input(f"API key{hint}: ")
+                api_key = api_key.strip()
+
+        # Model
+        default_model = defaults["default_model"]
+        model_input = await self._input_handler.get_user_input(
+            f"Default model [{default_model}]: "
+        )
+        model = model_input.strip() or default_model
+
+        # Build and save config
+        from isotope_agents.config import ProviderConfig
+
+        config = IsotopeConfig(
+            provider=ProviderConfig(
+                type=ptype,
+                base_url=base_url,
+                api_key=api_key,
+            ),
+            model=model,
+        )
+        save_config(config)
+        _print("\n✓ Saved to ~/.isotope/settings.json\n", style="info")
+        return config
+
     async def run(self) -> None:
         """Main TUI loop."""
-        _print("isotope-agents TUI v1.0", style="info")
-        _print(f"Proxy: {PROXY_BASE_URL}", style="dim")
-        _print(f"Workspace: {WORKSPACE}", style="dim")
+        from isotope_agents import __version__
 
-        # Fetch and select model
-        models = await _fetch_models(PROXY_BASE_URL)
-        self.model = await self._select_model(models)
+        _print(f"isotope-agents TUI v{__version__}", style="info")
+
+        # First-run experience: if no config and no env vars, run wizard
+        needs_fre = (
+            self.config.provider.type == "proxy"
+            and not self.config.provider.api_key
+            and self.config.model == "default"
+        )
+        if needs_fre:
+            self.config = await self._run_setup_wizard()
+
+        # Resolve model if not set by CLI
+        if not self.model:
+            if self.config.model and self.config.model != "default":
+                self.model = self.config.model
+            else:
+                defaults = PROVIDER_DEFAULTS.get(
+                    self.config.provider.type, PROVIDER_DEFAULTS["proxy"]
+                )
+                self.model = defaults["default_model"]
+
+        ptype = self.config.provider.type
+        _print(f"Provider: {ptype}", style="dim")
         _print(f"Model: {self.model}", style="model")
+        _print(f"Workspace: {WORKSPACE}", style="dim")
 
         # System prompt
         custom_prompt = await self._get_system_prompt()
