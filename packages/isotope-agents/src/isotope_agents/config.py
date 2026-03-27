@@ -26,12 +26,12 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
     "openai": {
         "base_url": "https://api.openai.com/v1",
         "env_key": "OPENAI_API_KEY",
-        "default_model": "gpt-4.1",
+        "default_model": "gpt-5.4",
     },
     "anthropic": {
         "base_url": "https://api.anthropic.com",
         "env_key": "ANTHROPIC_API_KEY",
-        "default_model": "claude-sonnet-4-20250514",
+        "default_model": "claude-sonnet-4.6-20260301",
     },
     "minimax": {
         "base_url": "https://api.minimaxi.com/v1",
@@ -46,7 +46,7 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
     "proxy": {
         "base_url": "http://localhost:4141/v1",
         "env_key": "",
-        "default_model": "claude-sonnet-4-20250514",
+        "default_model": "claude-sonnet-4.6-20260301",
     },
 }
 
