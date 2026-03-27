@@ -164,6 +164,7 @@ class TestDetectProviderFromEnv:
         assert config is not None
         assert config.provider.type == "anthropic"
         assert config.provider.api_key == "sk-ant-test"
+        assert config.from_env is True
 
     def test_openai_key_detected(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """OPENAI_API_KEY detected when no Anthropic key."""

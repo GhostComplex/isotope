@@ -42,8 +42,8 @@ from .render import (
 PROVIDER_LABELS = {
     "anthropic": "Anthropic        (claude-opus-4, claude-sonnet-4, ...)",
     "openai": "OpenAI           (gpt-4.1, o3, ...)",
-    "minimax": "MiniMax CN       (MiniMax-M1, api.minimaxi.com)",
-    "minimax-global": "MiniMax Global   (MiniMax-M1, api.minimax.io)",
+    "minimax": "MiniMax CN       (MiniMax-M2.7, api.minimaxi.com)",
+    "minimax-global": "MiniMax Global   (MiniMax-M2.7, api.minimax.io)",
     "proxy": "OpenAI-compatible proxy  (localhost, LiteLLM, Ollama, ...)",
 }
 

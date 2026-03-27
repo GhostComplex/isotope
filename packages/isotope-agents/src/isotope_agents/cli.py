@@ -19,7 +19,6 @@ from isotope_agents.agent import IsotopeAgent
 from isotope_agents.config import (
     PROVIDER_DEFAULTS,
     create_provider,
-    detect_provider_from_env,
     load_config,
 )
 from isotope_agents.presets import get_preset
@@ -155,12 +154,9 @@ async def run_one_shot(
             effective_model = defaults["default_model"]
 
         # Env var notice
-        env_config = detect_provider_from_env()
-        if env_config and config.provider.type != "proxy" or config.provider.api_key:
-            pass  # Config file or explicit key — no notice
-        elif env_config:
+        if config.from_env:
             print(
-                f"Using {env_config.provider.type} (from env). "
+                f"Using {config.provider.type} (from env). "
                 "Run /setup in chat to configure.",
                 file=sys.stderr,
             )

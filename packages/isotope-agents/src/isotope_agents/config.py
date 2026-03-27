@@ -36,12 +36,12 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
     "minimax": {
         "base_url": "https://api.minimaxi.com/v1",
         "env_key": "MINIMAX_API_KEY",
-        "default_model": "MiniMax-M1",
+        "default_model": "MiniMax-M2.7",
     },
     "minimax-global": {
         "base_url": "https://api.minimax.io/v1",
         "env_key": "MINIMAX_API_KEY",
-        "default_model": "MiniMax-M1",
+        "default_model": "MiniMax-M2.7",
     },
     "proxy": {
         "base_url": "http://localhost:4141/v1",
@@ -91,6 +91,7 @@ class IsotopeConfig:
     tools: list[str] = field(default_factory=list)
     provider: ProviderConfig = field(default_factory=ProviderConfig)
     mcp_servers: list[McpServerConfig] = field(default_factory=list)
+    from_env: bool = False  # True when config was auto-detected from env vars
 
 
 # ---------------------------------------------------------------------------
@@ -255,6 +256,7 @@ def detect_provider_from_env() -> IsotopeConfig | None:
             return IsotopeConfig(
                 model=defaults["default_model"],
                 provider=provider,
+                from_env=True,
             )
 
     return None
