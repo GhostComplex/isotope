@@ -12,6 +12,7 @@ try:
     from rich.console import Console
     from rich.markdown import Markdown
     from rich.panel import Panel
+    from rich.text import Text
     _RICH_AVAILABLE = True
 except ImportError:
     _RICH_AVAILABLE = False
@@ -103,7 +104,8 @@ def render_tool_output(tool_name: str, output: str, is_error: bool = False) -> N
         console = Console()
         style = "red" if is_error else "blue"
         title = f"[{style}]{tool_name}[/{style}]" + (" (error)" if is_error else "")
-        panel = Panel(output, title=title, border_style=style)
+        text = Text.from_ansi(output)
+        panel = Panel(text, title=title, border_style=style)
         console.print(panel)
     else:
         # Fallback to plain text

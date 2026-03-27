@@ -216,7 +216,17 @@ class TUI:
         elif action.type == "tool_end":
             if buf:
                 buf.flush()
-            render_tool_output(action.tool_name, action.content, action.is_error)
+                # Rich Console bypasses patch_stdout, so render as plain text
+                # when prompt_toolkit is active.
+                error_marker = " (error)" if action.is_error else ""
+                print(f"\n[{action.tool_name}{error_marker}]")
+                stripped = action.content.strip()
+                if stripped:
+                    for line in stripped.splitlines():
+                        print(f"  {line}")
+                print()
+            else:
+                render_tool_output(action.tool_name, action.content, action.is_error)
 
         elif action.type == "message_end":
             # Skip markdown re-render when text was already streamed via
@@ -224,7 +234,10 @@ class TUI:
             if not self._streamed_text:
                 if buf:
                     buf.flush()
-                render_markdown(action.content)
+                    # Rich Console bypasses patch_stdout; use plain print.
+                    print(action.content)
+                else:
+                    render_markdown(action.content)
 
         elif action.type == "usage":
             self.total_input_tokens += action.input_tokens

@@ -65,6 +65,14 @@ def _format_tool_result(result: object) -> str:
     """Format a tool result for display."""
     if isinstance(result, str):
         return result
+    # ToolEndEvent.result is typically {"content": [{"type": "text", "text": ...}, ...]}
+    if isinstance(result, dict) and "content" in result:
+        parts: list[str] = []
+        for block in result["content"]:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        if parts:
+            return "\n".join(parts)
     try:
         return json.dumps(result, indent=2, default=str)
     except (TypeError, ValueError):
