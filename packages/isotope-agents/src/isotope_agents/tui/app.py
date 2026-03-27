@@ -718,11 +718,14 @@ class TUI:
         _print(f"Model: {self.model}", style="model")
         _print(f"Workspace: {WORKSPACE}", style="dim")
 
-        # System prompt
-        custom_prompt = await self._get_system_prompt()
-        if custom_prompt:
-            self.custom_system_prompt = custom_prompt
-            _print(f"System prompt: {self.custom_system_prompt}", style="dim")
+        # System prompt (skip after FRE — use preset default)
+        if not needs_fre:
+            custom_prompt = await self._get_system_prompt()
+            if custom_prompt:
+                self.custom_system_prompt = custom_prompt
+                _print(f"System prompt: {self.custom_system_prompt}", style="dim")
+            else:
+                _print(f"Using {self.preset.name} preset system prompt", style="dim")
         else:
             _print(f"Using {self.preset.name} preset system prompt", style="dim")
 
