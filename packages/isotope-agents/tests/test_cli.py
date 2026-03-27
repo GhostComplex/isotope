@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import subprocess
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from isotope_agents.cli import create_parser, handle_agent_event, main, list_sessions, run_rpc
 from isotope_agents.session import SessionMeta
@@ -390,14 +390,16 @@ class TestMainDispatch:
             assert exc_info.value.code == 0
         mock_rpc.assert_called_once_with("m1", "minimal", "s1")
 
-    @patch("isotope_agents.cli.asyncio")
-    def test_main_run_dispatches_asyncio_run(self, mock_asyncio: MagicMock) -> None:
-        """main() with 'run' calls asyncio.run with run_one_shot coroutine."""
+    @patch("isotope_agents.cli.run_one_shot", new_callable=AsyncMock)
+    def test_main_run_dispatches_asyncio_run(
+        self, mock_run_one_shot: AsyncMock
+    ) -> None:
+        """main() with 'run' calls run_one_shot with correct args."""
         with patch("sys.argv", ["isotope", "run", "hello"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 0
-        mock_asyncio.run.assert_called_once()
+        mock_run_one_shot.assert_awaited_once()
 
 
 class TestRunRpc:
