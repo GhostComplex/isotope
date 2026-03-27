@@ -50,9 +50,7 @@ class TestBashTool:
     @pytest.mark.asyncio
     async def test_timeout(self) -> None:
         tool = self._get_tool()
-        result = await tool.execute(
-            "call_1", {"command": "sleep 10", "timeout": 1}
-        )
+        result = await tool.execute("call_1", {"command": "sleep 10", "timeout": 1})
         assert result.is_error
         assert "timed out" in result.content[0].text.lower()
 
@@ -61,9 +59,7 @@ class TestBashTool:
         """Timeout is capped at MAX_TIMEOUT."""
         tool = self._get_tool()
         # Should not actually wait 999 seconds
-        result = await tool.execute(
-            "call_1", {"command": "echo fast", "timeout": 999}
-        )
+        result = await tool.execute("call_1", {"command": "echo fast", "timeout": 999})
         assert not result.is_error
         assert "fast" in result.content[0].text
 

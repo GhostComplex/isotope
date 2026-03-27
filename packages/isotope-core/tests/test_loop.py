@@ -623,8 +623,10 @@ class TestAgentLoopBudget:
         )
 
         async def dummy_execute(
-            tool_call_id: str, params: dict[str, Any],
-            signal: asyncio.Event | None = None, on_update: Any = None,
+            tool_call_id: str,
+            params: dict[str, Any],
+            signal: asyncio.Event | None = None,
+            on_update: Any = None,
         ) -> ToolResult:
             return ToolResult.text("ok")
 
@@ -673,8 +675,10 @@ class TestAgentLoopBudget:
         # First response uses many tokens (defined inline in mock below)
 
         async def dummy_execute(
-            tool_call_id: str, params: dict[str, Any],
-            signal: asyncio.Event | None = None, on_update: Any = None,
+            tool_call_id: str,
+            params: dict[str, Any],
+            signal: asyncio.Event | None = None,
+            on_update: Any = None,
         ) -> ToolResult:
             return ToolResult.text("ok")
 
@@ -937,8 +941,10 @@ class TestAgentLoopToolEdgeCases:
         """Test that invalid tool arguments are handled gracefully."""
 
         async def strict_execute(
-            tool_call_id: str, params: dict[str, Any],
-            signal: asyncio.Event | None = None, on_update: Any = None,
+            tool_call_id: str,
+            params: dict[str, Any],
+            signal: asyncio.Event | None = None,
+            on_update: Any = None,
         ) -> ToolResult:
             return ToolResult.text("ok")
 
@@ -990,8 +996,10 @@ class TestAgentLoopToolEdgeCases:
             raise RuntimeError("Hook exploded")
 
         async def dummy_execute(
-            tool_call_id: str, params: dict[str, Any],
-            signal: asyncio.Event | None = None, on_update: Any = None,
+            tool_call_id: str,
+            params: dict[str, Any],
+            signal: asyncio.Event | None = None,
+            on_update: Any = None,
         ) -> ToolResult:
             return ToolResult.text("ok")
 
@@ -1041,7 +1049,8 @@ class TestAgentLoopToolEdgeCases:
         """Test that on_update callback is invoked during tool execution."""
 
         async def streaming_execute(
-            tool_call_id: str, params: dict[str, Any],
+            tool_call_id: str,
+            params: dict[str, Any],
             signal: asyncio.Event | None = None,
             on_update: Any = None,
         ) -> ToolResult:
@@ -1097,8 +1106,10 @@ class TestAgentLoopToolEdgeCases:
             return AfterToolCallResult(is_error=False)
 
         async def failing_execute(
-            tool_call_id: str, params: dict[str, Any],
-            signal: asyncio.Event | None = None, on_update: Any = None,
+            tool_call_id: str,
+            params: dict[str, Any],
+            signal: asyncio.Event | None = None,
+            on_update: Any = None,
         ) -> ToolResult:
             return ToolResult.error("Something went wrong")
 
@@ -1150,8 +1161,10 @@ class TestAgentLoopToolEdgeCases:
             raise RuntimeError("After hook exploded")
 
         async def dummy_execute(
-            tool_call_id: str, params: dict[str, Any],
-            signal: asyncio.Event | None = None, on_update: Any = None,
+            tool_call_id: str,
+            params: dict[str, Any],
+            signal: asyncio.Event | None = None,
+            on_update: Any = None,
         ) -> ToolResult:
             return ToolResult.text("ok")
 
@@ -1203,10 +1216,13 @@ class TestAgentLoopSteeringFollowUp:
     @pytest.mark.asyncio
     async def test_steering_queue_empty_race(self) -> None:
         """Test steering queue handling when QueueEmpty is raised during drain."""
+
         # Use a tool call to trigger the steering check path
         async def dummy_execute(
-            tool_call_id: str, params: dict[str, Any],
-            signal: asyncio.Event | None = None, on_update: Any = None,
+            tool_call_id: str,
+            params: dict[str, Any],
+            signal: asyncio.Event | None = None,
+            on_update: Any = None,
         ) -> ToolResult:
             return ToolResult.text("ok")
 

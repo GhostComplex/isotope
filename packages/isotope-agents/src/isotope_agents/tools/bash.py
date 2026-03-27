@@ -37,9 +37,7 @@ async def bash(command: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult:
             cwd=_WORKSPACE,
         )
         try:
-            stdout, _ = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except TimeoutError:
             proc.kill()
             await proc.wait()
@@ -48,9 +46,7 @@ async def bash(command: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult:
         output = truncate_output(output, max_chars=MAX_OUTPUT_CHARS, strategy="tail")
         exit_code = proc.returncode
         result = (
-            f"Exit code: {exit_code}\n{output}"
-            if output
-            else f"Exit code: {exit_code}"
+            f"Exit code: {exit_code}\n{output}" if output else f"Exit code: {exit_code}"
         )
         if exit_code != 0:
             return ToolResult.error(result)

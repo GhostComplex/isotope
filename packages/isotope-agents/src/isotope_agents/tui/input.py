@@ -25,7 +25,9 @@ try:
     from prompt_toolkit.layout.containers import HSplit as _HSplit
     from prompt_toolkit.layout.containers import Window as _Window
     from prompt_toolkit.layout.controls import BufferControl as _BufferControl
-    from prompt_toolkit.layout.controls import FormattedTextControl as _FormattedTextControl
+    from prompt_toolkit.layout.controls import (
+        FormattedTextControl as _FormattedTextControl,
+    )
     from prompt_toolkit.layout.layout import Layout as _Layout
     from prompt_toolkit.layout.processors import BeforeInput as _BeforeInput
     from prompt_toolkit.patch_stdout import patch_stdout as _patch_stdout
@@ -236,6 +238,7 @@ class StreamInputHandler:
 
         if HAS_PROMPT_TOOLKIT and self._prompt_session is not None:
             from prompt_toolkit.formatted_text import HTML
+
             return await self._prompt_session.prompt_async(
                 HTML(prompt),
                 default=default or self._prefill_text,

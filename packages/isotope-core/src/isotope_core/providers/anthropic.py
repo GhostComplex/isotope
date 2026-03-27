@@ -535,15 +535,12 @@ class AnthropicProvider:
                                 thinking_signatures[index] += sig_delta
                                 delta_block.thinking_signature = thinking_signatures[index]
 
-                        elif (
-                            delta_type == "input_json_delta"
-                            and isinstance(delta_block, ToolCallContent)
+                        elif delta_type == "input_json_delta" and isinstance(
+                            delta_block, ToolCallContent
                         ):
                             json_delta: str = getattr(event.delta, "partial_json", "")
                             partial_tool_args[index] += json_delta
-                            delta_block.arguments = _parse_streaming_json(
-                                partial_tool_args[index]
-                            )
+                            delta_block.arguments = _parse_streaming_json(partial_tool_args[index])
 
                             content_idx = output.content.index(delta_block)
                             yield StreamToolCallDeltaEvent(

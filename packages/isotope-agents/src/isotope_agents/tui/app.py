@@ -26,7 +26,13 @@ from isotope_agents.session import SessionStore
 from .commands import CommandHandler, CommandResult, TUIState
 from .events import EventAction, process_event
 from .input import StreamInputHandler
-from .render import _print, _print_inline, _StreamBuffer, render_markdown, render_tool_output
+from .render import (
+    _print,
+    _print_inline,
+    _StreamBuffer,
+    render_markdown,
+    render_tool_output,
+)
 
 PROXY_BASE_URL = "http://localhost:4141/v1"
 DEFAULT_MODEL = "claude-opus-4.6"
@@ -38,6 +44,7 @@ WORKSPACE = os.getcwd()
 # ---------------------------------------------------------------------------
 # Model listing
 # ---------------------------------------------------------------------------
+
 
 async def _fetch_models(base_url: str) -> list[str]:
     """Fetch available models from the proxy."""
@@ -62,6 +69,7 @@ async def _fetch_models(base_url: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # Main TUI
 # ---------------------------------------------------------------------------
+
 
 class TUI:
     """Interactive TUI for isotope-agents."""
@@ -151,8 +159,10 @@ class TUI:
         Returns True when the caller should stop reading more input.
         """
         should_stop, steer_text = self._input_handler.handle_stream_input_line(
-            line, self.agent, prompt_toolkit=prompt_toolkit,
-            print_stream_notice=self._print_stream_notice
+            line,
+            self.agent,
+            prompt_toolkit=prompt_toolkit,
+            print_stream_notice=self._print_stream_notice,
         )
 
         if steer_text:
@@ -175,7 +185,9 @@ class TUI:
             async for event in gen:
                 actions = process_event(event, debug=self.debug)
                 for action in actions:
-                    self._apply_event_action(action, buf=buf, prompt_toolkit=prompt_toolkit)
+                    self._apply_event_action(
+                        action, buf=buf, prompt_toolkit=prompt_toolkit
+                    )
 
         except asyncio.CancelledError:
             # On cancellation (steering), discard the buffer.
@@ -273,7 +285,9 @@ class TUI:
 
         trailing_text = buf.drain() if buf else ""
 
-        partial_msg = self.agent.core.state.stream_message if self.agent is not None else None
+        partial_msg = (
+            self.agent.core.state.stream_message if self.agent is not None else None
+        )
 
         # Explicitly close the generator so _run_loop's finally block runs
         # synchronously, resetting agent.state.is_streaming to False.
@@ -294,7 +308,9 @@ class TUI:
             self._input_handler.set_prefill_text(steer_text)
             steer_text = None
 
-        assistant_partial = partial_msg if isinstance(partial_msg, AssistantMessage) else None
+        assistant_partial = (
+            partial_msg if isinstance(partial_msg, AssistantMessage) else None
+        )
         return trailing_text, steer_text, assistant_partial
 
     def _apply_steering_redirect(
@@ -362,17 +378,27 @@ class TUI:
                 messages = self.session_store.entries_to_messages(entries)
                 if messages:
                     agent.core.replace_messages(messages)
-                    _print(f"Resumed session {session_id} with {len(messages)} messages", style="info")
+                    _print(
+                        f"Resumed session {session_id} with {len(messages)} messages",
+                        style="info",
+                    )
             except FileNotFoundError:
-                _print(f"Warning: Session {session_id} not found, starting fresh", style="warn")
+                _print(
+                    f"Warning: Session {session_id} not found, starting fresh",
+                    style="warn",
+                )
             except Exception as e:
-                _print(f"Warning: Failed to resume session {session_id}: {e}", style="warn")
+                _print(
+                    f"Warning: Failed to resume session {session_id}: {e}", style="warn"
+                )
 
         return agent
 
     def _rebuild_agent(self, *, keep_history: bool = True) -> None:
         """Rebuild the agent (e.g. after model / tool change)."""
-        old_messages = self.agent.core.messages[:] if self.agent and keep_history else []
+        old_messages = (
+            self.agent.core.messages[:] if self.agent and keep_history else []
+        )
         old_session_id = self.agent.session_id if self.agent and keep_history else None
         self.agent = self._create_agent(old_session_id)
         if old_messages:
@@ -477,15 +503,23 @@ class TUI:
             sessions = sessions[:10]
 
             _print("Recent sessions:", style="info")
-            _print(f"{'ID':<8} {'Started':<19} {'Messages':<8} {'Last message'}", style="dim")
+            _print(
+                f"{'ID':<8} {'Started':<19} {'Messages':<8} {'Last message'}",
+                style="dim",
+            )
             _print("-" * 80, style="dim")
 
             for session in sessions:
                 # Format timestamp to remove timezone and seconds
-                started_str = session.started_at[:19].replace('T', ' ')
-                last_msg_preview = session.last_message_preview[:40] + ("..." if len(session.last_message_preview) > 40 else "")
+                started_str = session.started_at[:19].replace("T", " ")
+                last_msg_preview = session.last_message_preview[:40] + (
+                    "..." if len(session.last_message_preview) > 40 else ""
+                )
 
-                _print(f"{session.id:<8} {started_str:<19} {session.message_count:<8} {last_msg_preview}", style="dim")
+                _print(
+                    f"{session.id:<8} {started_str:<19} {session.message_count:<8} {last_msg_preview}",
+                    style="dim",
+                )
 
         except Exception as e:
             _print(f"Error listing sessions: {e}", style="warn")
@@ -507,7 +541,9 @@ class TUI:
         context of what it already said.
         """
         if self.agent is None:
-            session_id = self.resume_session_id if hasattr(self, 'resume_session_id') else None
+            session_id = (
+                self.resume_session_id if hasattr(self, "resume_session_id") else None
+            )
             self.agent = self._create_agent(session_id)
         assert self.agent is not None
 
@@ -548,7 +584,11 @@ class TUI:
                     return_when=asyncio.FIRST_COMPLETED,
                 )
 
-                trailing_text, steer_text, partial_msg = await self._finish_stream_iteration(
+                (
+                    trailing_text,
+                    steer_text,
+                    partial_msg,
+                ) = await self._finish_stream_iteration(
                     gen=gen,
                     buf=buf,
                     done=done,
@@ -557,7 +597,9 @@ class TUI:
                 )
 
                 if steer_text:
-                    current_text = self._apply_steering_redirect(steer_text, partial_msg)
+                    current_text = self._apply_steering_redirect(
+                        steer_text, partial_msg
+                    )
                     continue
 
                 if trailing_text:
@@ -608,7 +650,10 @@ class TUI:
         if self.agent.session_id:
             _print(f"Session: {self.agent.session_id}", style="info")
 
-        _print("\nType your message (or /help for commands). Ctrl+D to exit.\n", style="dim")
+        _print(
+            "\nType your message (or /help for commands). Ctrl+D to exit.\n",
+            style="dim",
+        )
 
         while True:
             try:
@@ -650,6 +695,7 @@ class TUI:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     """Run the TUI."""
