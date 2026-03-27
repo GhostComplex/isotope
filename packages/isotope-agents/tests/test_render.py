@@ -18,7 +18,6 @@ from isotope_agents.tui.render import (
 # _print / _print_inline
 # ---------------------------------------------------------------------------
 
-
 class TestPrint:
     """Tests for the _print() helper."""
 
@@ -71,7 +70,6 @@ class TestPrintInline:
 # ---------------------------------------------------------------------------
 # _StreamBuffer
 # ---------------------------------------------------------------------------
-
 
 class TestStreamBuffer:
     """Tests for the _StreamBuffer class."""
@@ -222,7 +220,6 @@ class TestStreamBuffer:
 # render_markdown
 # ---------------------------------------------------------------------------
 
-
 class TestRenderMarkdown:
     """Test markdown rendering functionality."""
 
@@ -267,7 +264,7 @@ def hello():
         # Should produce output without crashing
         assert len(captured.out) > 0
 
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_render_markdown_fallback(self, capsys):
         """Test fallback behavior when rich is not available."""
         render_markdown("# Hello World")
@@ -275,14 +272,14 @@ def hello():
         # Should fallback to plain text output
         assert "# Hello World" in captured.out
 
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_render_markdown_fallback_empty(self, capsys):
         """Fallback path with an empty string just prints a blank line."""
         render_markdown("")
         captured = capsys.readouterr()
         assert captured.out == "\n"
 
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_render_markdown_fallback_multiline(self, capsys):
         """Fallback path prints multiline markdown text verbatim."""
         text = "# Title\n\nParagraph\n"
@@ -295,7 +292,6 @@ def hello():
 # ---------------------------------------------------------------------------
 # render_tool_output
 # ---------------------------------------------------------------------------
-
 
 class TestRenderToolOutput:
     """Test tool output rendering functionality."""
@@ -331,7 +327,7 @@ Line 3"""
         # Should handle multiline content
         assert len(captured.out) > 0
 
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_render_tool_output_fallback_normal(self, capsys):
         """Test fallback behavior for normal tool output when rich is not available."""
         render_tool_output("test_tool", "This is test output", is_error=False)
@@ -342,7 +338,7 @@ Line 3"""
         # Should contain the output text, possibly indented
         assert "This is test output" in captured.out
 
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_render_tool_output_fallback_error(self, capsys):
         """Test fallback behavior for error tool output when rich is not available."""
         render_tool_output("test_tool", "Error occurred", is_error=True)
@@ -354,7 +350,7 @@ Line 3"""
         # Should contain the error text
         assert "Error occurred" in captured.out
 
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_render_tool_output_fallback_empty(self, capsys):
         """Fallback with empty output skips the indented body."""
         render_tool_output("my_tool", "", is_error=False)
@@ -366,7 +362,7 @@ Line 3"""
         body_lines = [ln for ln in lines if ln.startswith("  ")]
         assert body_lines == []
 
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_render_tool_output_fallback_whitespace_only(self, capsys):
         """Fallback with whitespace-only output skips the indented body."""
         render_tool_output("my_tool", "   \n  \n", is_error=False)
@@ -377,7 +373,7 @@ Line 3"""
         body_lines = [ln for ln in lines if ln.startswith("  ") and ln.strip()]
         assert body_lines == []
 
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_render_tool_output_fallback_multiline_indented(self, capsys):
         """Fallback indents each output line with two spaces."""
         render_tool_output("tool", "alpha\nbeta", is_error=False)
@@ -385,7 +381,7 @@ Line 3"""
         assert "  alpha" in captured.out
         assert "  beta" in captured.out
 
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_render_tool_output_fallback_error_marker(self, capsys):
         """Fallback error header includes ' (error)' suffix."""
         render_tool_output("cmd", "fail", is_error=True)
@@ -396,7 +392,6 @@ Line 3"""
 # ---------------------------------------------------------------------------
 # Rich import failure
 # ---------------------------------------------------------------------------
-
 
 class TestRichImportFailure:
     """Test behavior when rich import fails."""
@@ -410,16 +405,8 @@ class TestRichImportFailure:
         # If we got this far, the module imported successfully
         assert True
 
-    @patch.dict(
-        sys.modules,
-        {
-            "rich.console": None,
-            "rich.markdown": None,
-            "rich.panel": None,
-            "rich.syntax": None,
-        },
-    )
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch.dict(sys.modules, {'rich.console': None, 'rich.markdown': None, 'rich.panel': None, 'rich.syntax': None})
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_functions_work_without_rich(self, capsys):
         """Test that functions work when rich modules are not available."""
         # Test markdown rendering
@@ -433,16 +420,8 @@ class TestRichImportFailure:
         assert "[tool]" in captured.out
         assert "output" in captured.out
 
-    @patch.dict(
-        sys.modules,
-        {
-            "rich.console": None,
-            "rich.markdown": None,
-            "rich.panel": None,
-            "rich.syntax": None,
-        },
-    )
-    @patch("isotope_agents.tui.render._RICH_AVAILABLE", False)
+    @patch.dict(sys.modules, {'rich.console': None, 'rich.markdown': None, 'rich.panel': None, 'rich.syntax': None})
+    @patch('isotope_agents.tui.render._RICH_AVAILABLE', False)
     def test_print_helpers_work_without_rich(self, capsys):
         """_print and _print_inline still work when rich is unavailable."""
         _print("plain")

@@ -15,7 +15,9 @@ from isotope_agents.tools import truncate_output
 DEFAULT_MAX_CHARS = 20_000
 REQUEST_TIMEOUT = 15
 
-_USER_AGENT = "Mozilla/5.0 (compatible; IsotopeAgent/0.1; +https://github.com/GhostComplex/isotope)"
+_USER_AGENT = (
+    "Mozilla/5.0 (compatible; IsotopeAgent/0.1; +https://github.com/GhostComplex/isotope)"
+)
 
 _ALLOWED_SCHEMES = {"http", "https"}
 
@@ -36,28 +38,9 @@ class _HTMLTextExtractor(HTMLParser):
             self._skip_depth += 1
         # Insert whitespace for block-level elements to avoid merging text
         if tag.lower() in {
-            "p",
-            "div",
-            "br",
-            "h1",
-            "h2",
-            "h3",
-            "h4",
-            "h5",
-            "h6",
-            "li",
-            "tr",
-            "td",
-            "th",
-            "blockquote",
-            "pre",
-            "hr",
-            "section",
-            "article",
-            "header",
-            "footer",
-            "nav",
-            "main",
+            "p", "div", "br", "h1", "h2", "h3", "h4", "h5", "h6",
+            "li", "tr", "td", "th", "blockquote", "pre", "hr", "section",
+            "article", "header", "footer", "nav", "main",
         }:
             self._chunks.append("\n")
 
@@ -96,9 +79,7 @@ def _validate_url(url: str) -> str | None:
         return f"Invalid URL: {url}"
 
     if not parsed.scheme:
-        return (
-            f"Invalid URL (missing scheme): {url} — only http and https are supported"
-        )
+        return f"Invalid URL (missing scheme): {url} — only http and https are supported"
 
     if parsed.scheme.lower() not in _ALLOWED_SCHEMES:
         return f"Unsupported URL scheme: {parsed.scheme} — only http and https are supported"
@@ -141,7 +122,9 @@ async def web_fetch(url: str, max_chars: int = DEFAULT_MAX_CHARS) -> ToolResult:
     except httpx.TimeoutException:
         return ToolResult.error(f"Request timed out after {REQUEST_TIMEOUT}s")
     except httpx.HTTPStatusError as exc:
-        return ToolResult.error(f"HTTP error {exc.response.status_code} fetching {url}")
+        return ToolResult.error(
+            f"HTTP error {exc.response.status_code} fetching {url}"
+        )
     except httpx.HTTPError as exc:
         return ToolResult.error(f"Failed to fetch URL: {exc}")
 

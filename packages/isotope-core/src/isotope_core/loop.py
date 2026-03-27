@@ -59,8 +59,8 @@ if TYPE_CHECKING:
 class LoopDetectionConfig:
     """Configuration for loop detection in the agent loop."""
 
-    same_call_threshold: int = 3  # same tool + same args repeated N times → inject steering
-    same_tool_threshold: int = 5  # same tool (any args) repeated N times → emit warning event
+    same_call_threshold: int = 3      # same tool + same args repeated N times → inject steering
+    same_tool_threshold: int = 5      # same tool (any args) repeated N times → emit warning event
     enabled: bool = True
 
 
@@ -179,7 +179,7 @@ def _check_loop_detection(
         return False, None, False
 
     # Get recent calls for same call detection
-    recent_calls = tool_calls_history[-config.same_call_threshold :]
+    recent_calls = tool_calls_history[-config.same_call_threshold:]
     if len(recent_calls) >= config.same_call_threshold:
         # Check if all recent calls are identical (same tool + same args)
         first_call = recent_calls[0]
@@ -193,7 +193,7 @@ def _check_loop_detection(
 
     # Check for same tool (different args) pattern
     if len(tool_calls_history) >= config.same_tool_threshold:
-        recent_tool_calls = tool_calls_history[-config.same_tool_threshold :]
+        recent_tool_calls = tool_calls_history[-config.same_tool_threshold:]
         tool_names = [call[0] for call in recent_tool_calls]
 
         # Check if same tool was used repeatedly
@@ -633,14 +633,16 @@ async def agent_loop(
             # Emit loop detected event if same tool threshold reached
             if should_emit_event and tool_calls_history:
                 last_tool_name = tool_calls_history[-1][0]
-                recent_calls = tool_calls_history[-config.loop_detection.same_tool_threshold :]
+                recent_calls = tool_calls_history[-config.loop_detection.same_tool_threshold:]
                 tool_count = sum(1 for tool_name, _ in recent_calls if tool_name == last_tool_name)
                 message = (
                     f"Tool '{last_tool_name}' has been called {tool_count} times consecutively"
                 )
-                loop_evt = await _emit(
-                    LoopDetectedEvent(tool_name=last_tool_name, count=tool_count, message=message)
-                )
+                loop_evt = await _emit(LoopDetectedEvent(
+                    tool_name=last_tool_name,
+                    count=tool_count,
+                    message=message
+                ))
                 if loop_evt is not None:
                     yield loop_evt
 
@@ -699,7 +701,9 @@ async def agent_loop(
                 # Append follow-up message to context
                 current_messages.append(followup_msg)
                 new_messages.append(followup_msg)
-                fu_evt = await _emit(FollowUpEvent(message=followup_msg, turn_number=turn_number))
+                fu_evt = await _emit(
+                    FollowUpEvent(message=followup_msg, turn_number=turn_number)
+                )
                 if fu_evt is not None:
                     yield fu_evt
                 ms_evt = await _emit(MessageStartEvent(message=followup_msg))

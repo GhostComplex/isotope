@@ -55,7 +55,9 @@ class TestEventFilterExclusion:
         mw = EventFilterMiddleware(exclude={"message_update", "tool_update"})
         ctx = _ctx()
 
-        result1 = await run_middleware_chain(MessageUpdateEvent(message=_msg()), ctx, [mw])
+        result1 = await run_middleware_chain(
+            MessageUpdateEvent(message=_msg()), ctx, [mw]
+        )
         result2 = await run_middleware_chain(
             ToolUpdateEvent(tool_call_id="1", tool_name="test", args={}), ctx, [mw]
         )

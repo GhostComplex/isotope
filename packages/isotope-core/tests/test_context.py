@@ -291,7 +291,9 @@ class TestEstimateContextUsage:
     def test_custom_window_override(self) -> None:
         """Custom windows take precedence over built-in ones."""
         ctx = Context()
-        usage = estimate_context_usage(ctx, model="gpt-4o", custom_windows={"gpt-4o": 50_000})
+        usage = estimate_context_usage(
+            ctx, model="gpt-4o", custom_windows={"gpt-4o": 50_000}
+        )
         assert usage.context_window == 50_000
 
 
@@ -757,7 +759,9 @@ class TestCreateSummarizationTransform:
     async def test_transform_summarizes_when_over_budget(self) -> None:
         """The transform hook summarizes messages when over budget."""
         provider = MockSummarizationProvider(summary="Summary of old messages.")
-        hook = create_summarization_transform(provider=provider, max_tokens=10, keep_recent=1)
+        hook = create_summarization_transform(
+            provider=provider, max_tokens=10, keep_recent=1
+        )
         msgs: list[Message] = [
             _user("old message number one with some extra text"),
             _assistant("old response number one with some extra text"),
@@ -774,7 +778,9 @@ class TestCreateSummarizationTransform:
     async def test_transform_no_pruning_under_budget(self) -> None:
         """Under budget, no summarization is done."""
         provider = MockSummarizationProvider()
-        hook = create_summarization_transform(provider=provider, max_tokens=100_000, keep_recent=5)
+        hook = create_summarization_transform(
+            provider=provider, max_tokens=100_000, keep_recent=5
+        )
         msgs: list[Message] = [_user("hi"), _assistant("hello")]
         result = await hook(msgs, None)
         assert len(result) == 2

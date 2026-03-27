@@ -17,7 +17,9 @@ MAX_RESULTS_CAP = 10
 MIN_RESULTS = 1
 REQUEST_TIMEOUT = 10
 
-_USER_AGENT = "Mozilla/5.0 (compatible; IsotopeAgent/0.1; +https://github.com/GhostComplex/isotope)"
+_USER_AGENT = (
+    "Mozilla/5.0 (compatible; IsotopeAgent/0.1; +https://github.com/GhostComplex/isotope)"
+)
 
 _DDG_URL = "https://html.duckduckgo.com/html/"
 
@@ -66,13 +68,11 @@ class _DDGResultParser(HTMLParser):
         elif tag == "a" and self._in_snippet:
             self._in_snippet = False
             if self._current_title.strip() and self._current_url:
-                self.results.append(
-                    {
-                        "title": self._current_title.strip(),
-                        "url": self._current_url.strip(),
-                        "snippet": self._current_snippet.strip(),
-                    }
-                )
+                self.results.append({
+                    "title": self._current_title.strip(),
+                    "url": self._current_url.strip(),
+                    "snippet": self._current_snippet.strip(),
+                })
 
     def handle_data(self, data: str) -> None:
         if self._in_result_link:
@@ -123,9 +123,7 @@ async def web_search(query: str, max_results: int = DEFAULT_MAX_RESULTS) -> Tool
     except httpx.TimeoutException:
         return ToolResult.error(f"Search request timed out after {REQUEST_TIMEOUT}s")
     except httpx.HTTPStatusError as exc:
-        return ToolResult.error(
-            f"Search request failed: HTTP {exc.response.status_code}"
-        )
+        return ToolResult.error(f"Search request failed: HTTP {exc.response.status_code}")
     except httpx.HTTPError as exc:
         return ToolResult.error(f"Search request failed: {exc}")
 

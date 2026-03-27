@@ -617,7 +617,9 @@ def create_sliding_window_transform(
     """
     strategy = SlidingWindowStrategy(keep_recent=keep_recent, keep_first_n=keep_first_n)
 
-    async def transform(messages: list[Message], signal: asyncio.Event | None) -> list[Message]:
+    async def transform(
+        messages: list[Message], signal: asyncio.Event | None
+    ) -> list[Message]:
         target = max_tokens if max_tokens is not None else get_context_window(model)
         result = await strategy.prune(messages, target, model=model)
         return result.messages
@@ -651,7 +653,9 @@ def create_summarization_transform(
         summary_prompt=summary_prompt,
     )
 
-    async def transform(messages: list[Message], signal: asyncio.Event | None) -> list[Message]:
+    async def transform(
+        messages: list[Message], signal: asyncio.Event | None
+    ) -> list[Message]:
         target = max_tokens if max_tokens is not None else get_context_window(model)
         result = await strategy.prune(messages, target, model=model)
         return result.messages

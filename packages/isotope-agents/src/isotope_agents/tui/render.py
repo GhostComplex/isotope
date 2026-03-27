@@ -13,7 +13,6 @@ try:
     from rich.markdown import Markdown
     from rich.panel import Panel
     from rich.text import Text
-
     _RICH_AVAILABLE = True
 except ImportError:
     _RICH_AVAILABLE = False
@@ -22,7 +21,6 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Output helpers (plain stdout)
 # ---------------------------------------------------------------------------
-
 
 def _print(text: str, style: str | None = None, **kw: Any) -> None:
     """Print text with optional style (styles ignored in plain mode)."""
@@ -39,7 +37,6 @@ def _print_inline(text: str, style: str | None = None) -> None:
 # ---------------------------------------------------------------------------
 # Stream buffer for prompt_toolkit integration
 # ---------------------------------------------------------------------------
-
 
 class _StreamBuffer:
     """Buffer streaming text, print complete lines only.
@@ -79,7 +76,6 @@ class _StreamBuffer:
 # ---------------------------------------------------------------------------
 # Rich markdown rendering (with fallback)
 # ---------------------------------------------------------------------------
-
 
 def render_markdown(text: str) -> None:
     """Render text as markdown using Rich if available, otherwise plain text.

@@ -94,7 +94,9 @@ class TestTokenTrackingUsage:
     @pytest.mark.asyncio
     async def test_cache_tokens_tracked(self) -> None:
         mw = TokenTrackingMiddleware()
-        msg = _assistant_msg(input_tokens=100, output_tokens=50, cache_read=30, cache_write=20)
+        msg = _assistant_msg(
+            input_tokens=100, output_tokens=50, cache_read=30, cache_write=20
+        )
         await run_middleware_chain(MessageEndEvent(message=msg), _ctx(), [mw])
 
         assert mw.total_usage.cache_read_tokens == 30

@@ -106,6 +106,7 @@ async def run_middleware_chain(
     # is the outermost (called first).
     chain: Callable[[AgentEvent], Awaitable[AgentEvent | None]] = innermost
     for mw in reversed(middleware):
+
         # Capture mw and current chain via default args
         def _make_next(
             _mw: Any,

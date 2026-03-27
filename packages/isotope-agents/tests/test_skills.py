@@ -76,7 +76,9 @@ def _write_skill(directory: Path, content: str) -> Path:
 class TestScan:
     """Tests for SkillLoader.scan()."""
 
-    def test_scan_finds_skill_md_with_valid_frontmatter(self, tmp_path: Path) -> None:
+    def test_scan_finds_skill_md_with_valid_frontmatter(
+        self, tmp_path: Path
+    ) -> None:
         """scan() discovers SKILL.md files with valid frontmatter."""
         _write_skill(tmp_path / "skills" / "git-commit", VALID_SKILL)
 
@@ -101,7 +103,9 @@ class TestScan:
         names = {s.name for s in results}
         assert names == {"git-commit", "code-review"}
 
-    def test_scan_ignores_files_without_frontmatter(self, tmp_path: Path) -> None:
+    def test_scan_ignores_files_without_frontmatter(
+        self, tmp_path: Path
+    ) -> None:
         """Files without YAML frontmatter are silently skipped."""
         _write_skill(tmp_path / "skills" / "valid", VALID_SKILL)
         _write_skill(tmp_path / "skills" / "no-fm", NO_FRONTMATTER)
@@ -112,18 +116,26 @@ class TestScan:
         assert len(results) == 1
         assert results[0].name == "git-commit"
 
-    def test_scan_ignores_incomplete_frontmatter(self, tmp_path: Path) -> None:
+    def test_scan_ignores_incomplete_frontmatter(
+        self, tmp_path: Path
+    ) -> None:
         """Frontmatter missing required fields is skipped."""
-        _write_skill(tmp_path / "skills" / "bad", BAD_FRONTMATTER_MISSING_FIELDS)
+        _write_skill(
+            tmp_path / "skills" / "bad", BAD_FRONTMATTER_MISSING_FIELDS
+        )
 
         loader = SkillLoader(skill_dirs=[tmp_path / "skills"])
         results = loader.scan()
 
         assert results == []
 
-    def test_scan_ignores_non_dict_frontmatter(self, tmp_path: Path) -> None:
+    def test_scan_ignores_non_dict_frontmatter(
+        self, tmp_path: Path
+    ) -> None:
         """Frontmatter that parses to a non-dict is skipped."""
-        _write_skill(tmp_path / "skills" / "bad", BAD_FRONTMATTER_NOT_DICT)
+        _write_skill(
+            tmp_path / "skills" / "bad", BAD_FRONTMATTER_NOT_DICT
+        )
 
         loader = SkillLoader(skill_dirs=[tmp_path / "skills"])
         results = loader.scan()
@@ -152,7 +164,9 @@ class TestScan:
         _write_skill(tmp_path / "dir_a" / "s1", VALID_SKILL)
         _write_skill(tmp_path / "dir_b" / "s2", VALID_SKILL_2)
 
-        loader = SkillLoader(skill_dirs=[tmp_path / "dir_a", tmp_path / "dir_b"])
+        loader = SkillLoader(
+            skill_dirs=[tmp_path / "dir_a", tmp_path / "dir_b"]
+        )
         results = loader.scan()
 
         names = {s.name for s in results}
@@ -190,7 +204,9 @@ class TestLoad:
         second = loader.load("git-commit")
         assert first is second
 
-    def test_load_nonexistent_skill_raises_key_error(self, tmp_path: Path) -> None:
+    def test_load_nonexistent_skill_raises_key_error(
+        self, tmp_path: Path
+    ) -> None:
         """Loading a skill that doesn't exist raises KeyError."""
         loader = SkillLoader(skill_dirs=[tmp_path])
         loader.scan()

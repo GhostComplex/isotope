@@ -31,7 +31,8 @@ async def edit_file(path: str, old_text: str, new_text: str) -> ToolResult:
             )
         if count > 1:
             return ToolResult.error(
-                f"old_text found {count} times in {resolved}. Must match exactly once."
+                f"old_text found {count} times in {resolved}. "
+                "Must match exactly once."
             )
         content = content.replace(old_text, new_text, 1)
         with open(resolved, "w", encoding="utf-8") as f:

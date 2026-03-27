@@ -98,7 +98,9 @@ async def test_multi_turn_conversation(proxy_provider: ProxyProvider) -> None:
     assert any(e.type == "agent_end" for e in events_2)
 
     # The assistant's last message should contain the secret word
-    assistant_messages = [m for m in agent.messages if isinstance(m, AssistantMessage)]
+    assistant_messages = [
+        m for m in agent.messages if isinstance(m, AssistantMessage)
+    ]
     assert len(assistant_messages) >= 2
     last_text = "".join(
         block.text for block in assistant_messages[-1].content if isinstance(block, TextContent)
@@ -284,7 +286,9 @@ async def test_agent_tool_calling_e2e(
         tools=[get_current_time_tool, calculator_tool],
     )
 
-    events = await _collect_events(agent.prompt("Use the calculator tool to compute 123 * 456."))
+    events = await _collect_events(
+        agent.prompt("Use the calculator tool to compute 123 * 456.")
+    )
     event_types = [e.type for e in events]
 
     # Should have used a tool
@@ -297,7 +301,9 @@ async def test_agent_tool_calling_e2e(
     # Final assistant message should reference the result (56088 or 56,088)
     assistant_msgs = [m for m in agent.messages if isinstance(m, AssistantMessage)]
     last_text = "".join(
-        block.text for block in assistant_msgs[-1].content if isinstance(block, TextContent)
+        block.text
+        for block in assistant_msgs[-1].content
+        if isinstance(block, TextContent)
     )
     # Models may format with commas (56,088) or without (56088)
     normalized = last_text.replace(",", "")

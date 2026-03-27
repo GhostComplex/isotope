@@ -148,7 +148,6 @@ async def run_one_shot(
             agent._tools = []
             # Rebuild the core agent with no tools
             from isotope_core import Agent
-
             agent._agent = Agent(
                 provider=provider,
                 system_prompt=agent._system_prompt,
@@ -204,9 +203,7 @@ def handle_agent_event(event: AgentEvent) -> None:
             )
 
 
-def launch_tui(
-    model: str, preset: str, no_tools: bool, session_id: str | None = None
-) -> None:
+def launch_tui(model: str, preset: str, no_tools: bool, session_id: str | None = None) -> None:
     """Launch the TUI interface.
 
     Args:
@@ -272,14 +269,10 @@ def list_sessions(limit: int = 10) -> None:
         # Print session rows
         for session in sessions:
             # Format timestamp to remove timezone and seconds
-            started_str = session.started_at[:19].replace("T", " ")
-            last_msg_preview = session.last_message_preview[:40] + (
-                "..." if len(session.last_message_preview) > 40 else ""
-            )
+            started_str = session.started_at[:19].replace('T', ' ')
+            last_msg_preview = session.last_message_preview[:40] + ("..." if len(session.last_message_preview) > 40 else "")
 
-            print(
-                f"{session.id:<8} {started_str:<19} {session.message_count:<8} {last_msg_preview}"
-            )
+            print(f"{session.id:<8} {started_str:<19} {session.message_count:<8} {last_msg_preview}")
 
     except Exception as e:
         print(f"Error listing sessions: {e}", file=sys.stderr)
@@ -308,11 +301,7 @@ def run_rpc(model: str, preset: str, session_id: str | None = None) -> None:
     config = load_config()
 
     # CLI flags override config-file values
-    effective_model = (
-        model
-        if model != DEFAULT_MODEL
-        else (config.model if config.model != "default" else DEFAULT_MODEL)
-    )
+    effective_model = model if model != DEFAULT_MODEL else (config.model if config.model != "default" else DEFAULT_MODEL)
 
     provider = ProxyProvider(
         model=effective_model,
@@ -345,19 +334,17 @@ def main() -> NoReturn:
         sys.exit(1)
 
     if args.command == "chat":
-        session_id = getattr(args, "session", None)
+        session_id = getattr(args, 'session', None)
         launch_tui(args.model, args.preset, args.no_tools, session_id)
 
     elif args.command == "run":
         try:
-            asyncio.run(
-                run_one_shot(
-                    args.prompt,
-                    args.model,
-                    args.preset,
-                    args.no_tools,
-                )
-            )
+            asyncio.run(run_one_shot(
+                args.prompt,
+                args.model,
+                args.preset,
+                args.no_tools,
+            ))
             sys.exit(0)
         except KeyboardInterrupt:
             print("\n[Interrupted]", file=sys.stderr)

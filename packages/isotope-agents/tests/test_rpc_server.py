@@ -96,11 +96,7 @@ class TestEmit:
 
         lines = _output_lines(output)
         assert len(lines) == 3
-        assert [ev["type"] for ev in lines] == [
-            "agent_start",
-            "text_delta",
-            "agent_end",
-        ]
+        assert [ev["type"] for ev in lines] == ["agent_start", "text_delta", "agent_end"]
 
 
 # ---------------------------------------------------------------------------
@@ -515,15 +511,10 @@ class TestRunLoop:
         output = io.StringIO()
         server = RpcServer(mock_agent, output_stream=output)
 
-        cmds = (
-            "\n".join(
-                [
-                    json.dumps({"type": "get_state", "id": "g1"}),
-                    json.dumps({"type": "get_state", "id": "g2"}),
-                ]
-            )
-            + "\n"
-        )
+        cmds = "\n".join([
+            json.dumps({"type": "get_state", "id": "g1"}),
+            json.dumps({"type": "get_state", "id": "g2"}),
+        ]) + "\n"
         server._input = io.StringIO(cmds)
 
         await server.run()

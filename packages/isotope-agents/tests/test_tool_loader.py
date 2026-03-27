@@ -33,12 +33,10 @@ class TestLoadToolsFromConfig:
 
     def test_multiple_modules(self) -> None:
         """Loading multiple modules collects tools from all of them."""
-        tools = load_tools_from_config(
-            [
-                "isotope_agents.tools.bash",
-                "isotope_agents.tools.read",
-            ]
-        )
+        tools = load_tools_from_config([
+            "isotope_agents.tools.bash",
+            "isotope_agents.tools.read",
+        ])
         assert len(tools) >= 2
         names = [t.name for t in tools]
         assert "bash" in names

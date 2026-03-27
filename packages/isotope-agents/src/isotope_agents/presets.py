@@ -110,16 +110,7 @@ class Preset:
 
 def _coding_tools() -> list[Tool]:
     """All tools for the coding preset."""
-    return [
-        read_file,
-        write_file,
-        edit_file,
-        bash,
-        grep,
-        glob_tool,
-        web_search,
-        web_fetch,
-    ]
+    return [read_file, write_file, edit_file, bash, grep, glob_tool, web_search, web_fetch]
 
 
 def _assistant_tools() -> list[Tool]:

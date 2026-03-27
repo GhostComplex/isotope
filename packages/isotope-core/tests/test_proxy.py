@@ -233,7 +233,9 @@ class TestProxyProviderStream:
         provider = ProxyProvider(model="test", base_url="http://localhost/v1")
 
         mock_client = AsyncMock()
-        mock_client.chat.completions.create = AsyncMock(side_effect=Exception("Connection refused"))
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=Exception("Connection refused")
+        )
         provider._client = mock_client
 
         events = []

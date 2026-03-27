@@ -83,7 +83,8 @@ class McpToolLoader:
                 await session.initialize()
                 response = await session.list_tools()
                 return [
-                    self._mcp_tool_to_isotope_tool(t, session) for t in response.tools
+                    self._mcp_tool_to_isotope_tool(t, session)
+                    for t in response.tools
                 ]
 
     # ------------------------------------------------------------------
@@ -100,7 +101,8 @@ class McpToolLoader:
                 await session.initialize()
                 response = await session.list_tools()
                 return [
-                    self._mcp_tool_to_isotope_tool(t, session) for t in response.tools
+                    self._mcp_tool_to_isotope_tool(t, session)
+                    for t in response.tools
                 ]
 
     # ------------------------------------------------------------------

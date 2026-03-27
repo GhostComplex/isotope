@@ -152,7 +152,11 @@ def loop_detection_config() -> LoopDetectionConfig:
 @pytest.fixture
 def custom_loop_detection_config() -> LoopDetectionConfig:
     """Create a custom loop detection config with different thresholds."""
-    return LoopDetectionConfig(same_call_threshold=2, same_tool_threshold=3, enabled=True)
+    return LoopDetectionConfig(
+        same_call_threshold=2,
+        same_tool_threshold=3,
+        enabled=True
+    )
 
 
 @pytest.fixture
@@ -266,7 +270,12 @@ def test_check_loop_detection_mixed_calls():
     config = LoopDetectionConfig(same_call_threshold=3, same_tool_threshold=3)
 
     # Mixed calls should not trigger
-    history = [("tool1", "hash1"), ("tool2", "hash2"), ("tool1", "hash3"), ("tool2", "hash4")]
+    history = [
+        ("tool1", "hash1"),
+        ("tool2", "hash2"),
+        ("tool1", "hash3"),
+        ("tool2", "hash4")
+    ]
     should_steer, message, should_emit = _check_loop_detection(history, config)
     assert not should_steer
     assert message is None
@@ -285,7 +294,11 @@ async def test_loop_detection_same_call_steering(mock_tool: MockTool):
     responses = [
         AssistantMessage(
             content=[
-                ToolCallContent(id=f"call_{i}", name="test_tool", arguments={"param": "same_value"})
+                ToolCallContent(
+                    id=f"call_{i}",
+                    name="test_tool",
+                    arguments={"param": "same_value"}
+                )
             ],
             stop_reason=StopReason.TOOL_USE,
             timestamp=int(time.time() * 1000),
@@ -300,15 +313,14 @@ async def test_loop_detection_same_call_steering(mock_tool: MockTool):
         provider=provider,
         tools=[mock_tool],
         steering_queue=steering_queue,
-        loop_detection=LoopDetectionConfig(same_call_threshold=3),
+        loop_detection=LoopDetectionConfig(same_call_threshold=3)
     )
 
     context = Context()
-    prompts = [
-        UserMessage(
-            content=[TextContent(text="Please use the tool")], timestamp=int(time.time() * 1000)
-        )
-    ]
+    prompts = [UserMessage(
+        content=[TextContent(text="Please use the tool")],
+        timestamp=int(time.time() * 1000)
+    )]
 
     events = []
     steer_found = False
@@ -326,7 +338,9 @@ async def test_loop_detection_same_call_steering(mock_tool: MockTool):
             break
 
     # Check that a SteerEvent was emitted (should have been found above)
-    assert steer_found, f"Expected SteerEvent, got {len(events)} events"
+    assert steer_found, (
+        f"Expected SteerEvent, got {len(events)} events"
+    )
 
     # Check that at least one SteerEvent was emitted
     steer_events = [e for e in events if isinstance(e, SteerEvent)]
@@ -340,7 +354,11 @@ async def test_loop_detection_same_tool_event(mock_tool: MockTool):
     responses = [
         AssistantMessage(
             content=[
-                ToolCallContent(id=f"call_{i}", name="test_tool", arguments={"param": f"value_{i}"})
+                ToolCallContent(
+                    id=f"call_{i}",
+                    name="test_tool",
+                    arguments={"param": f"value_{i}"}
+                )
             ],
             stop_reason=StopReason.TOOL_USE,
             timestamp=int(time.time() * 1000),
@@ -353,15 +371,14 @@ async def test_loop_detection_same_tool_event(mock_tool: MockTool):
     config = AgentLoopConfig(
         provider=provider,
         tools=[mock_tool],
-        loop_detection=LoopDetectionConfig(same_tool_threshold=5),
+        loop_detection=LoopDetectionConfig(same_tool_threshold=5)
     )
 
     context = Context()
-    prompts = [
-        UserMessage(
-            content=[TextContent(text="Please use the tool")], timestamp=int(time.time() * 1000)
-        )
-    ]
+    prompts = [UserMessage(
+        content=[TextContent(text="Please use the tool")],
+        timestamp=int(time.time() * 1000)
+    )]
 
     events = []
     loop_found = False
@@ -380,7 +397,9 @@ async def test_loop_detection_same_tool_event(mock_tool: MockTool):
             break
 
     # Check that LoopDetectedEvent was emitted
-    assert loop_found, f"Expected LoopDetectedEvent, got {len(events)} events"
+    assert loop_found, (
+        f"Expected LoopDetectedEvent, got {len(events)} events"
+    )
 
     loop_events = [e for e in events if isinstance(e, LoopDetectedEvent)]
     assert len(loop_events) > 0
@@ -393,7 +412,11 @@ async def test_loop_detection_disabled(mock_tool: MockTool):
     responses = [
         AssistantMessage(
             content=[
-                ToolCallContent(id=f"call_{i}", name="test_tool", arguments={"param": "same_value"})
+                ToolCallContent(
+                    id=f"call_{i}",
+                    name="test_tool",
+                    arguments={"param": "same_value"}
+                )
             ],
             stop_reason=StopReason.TOOL_USE,
             timestamp=int(time.time() * 1000),
@@ -408,15 +431,14 @@ async def test_loop_detection_disabled(mock_tool: MockTool):
         provider=provider,
         tools=[mock_tool],
         steering_queue=steering_queue,
-        loop_detection=LoopDetectionConfig(enabled=False),
+        loop_detection=LoopDetectionConfig(enabled=False)
     )
 
     context = Context()
-    prompts = [
-        UserMessage(
-            content=[TextContent(text="Please use the tool")], timestamp=int(time.time() * 1000)
-        )
-    ]
+    prompts = [UserMessage(
+        content=[TextContent(text="Please use the tool")],
+        timestamp=int(time.time() * 1000)
+    )]
 
     events = []
     async for event in agent_loop(prompts, context, config):
@@ -439,13 +461,23 @@ async def test_loop_detection_no_repetition(mock_tool: MockTool, another_mock_to
     # Create responses with different tools
     responses = [
         AssistantMessage(
-            content=[ToolCallContent(id="call_1", name="test_tool", arguments={"param": "value1"})],
+            content=[
+                ToolCallContent(
+                    id="call_1",
+                    name="test_tool",
+                    arguments={"param": "value1"}
+                )
+            ],
             stop_reason=StopReason.TOOL_USE,
             timestamp=int(time.time() * 1000),
         ),
         AssistantMessage(
             content=[
-                ToolCallContent(id="call_2", name="another_tool", arguments={"param": "value2"})
+                ToolCallContent(
+                    id="call_2",
+                    name="another_tool",
+                    arguments={"param": "value2"}
+                )
             ],
             stop_reason=StopReason.TOOL_USE,
             timestamp=int(time.time() * 1000),
@@ -454,7 +486,7 @@ async def test_loop_detection_no_repetition(mock_tool: MockTool, another_mock_to
             content=[TextContent(text="Done")],
             stop_reason=StopReason.END_TURN,
             timestamp=int(time.time() * 1000),
-        ),
+        )
     ]
 
     provider = MockProvider(responses)
@@ -464,15 +496,14 @@ async def test_loop_detection_no_repetition(mock_tool: MockTool, another_mock_to
         provider=provider,
         tools=[mock_tool, another_mock_tool],
         steering_queue=steering_queue,
-        loop_detection=LoopDetectionConfig(),
+        loop_detection=LoopDetectionConfig()
     )
 
     context = Context()
-    prompts = [
-        UserMessage(
-            content=[TextContent(text="Please use the tools")], timestamp=int(time.time() * 1000)
-        )
-    ]
+    prompts = [UserMessage(
+        content=[TextContent(text="Please use the tools")],
+        timestamp=int(time.time() * 1000)
+    )]
 
     events = []
     async for event in agent_loop(prompts, context, config):
@@ -493,7 +524,11 @@ async def test_loop_detection_threshold_customization(mock_tool: MockTool):
     responses = [
         AssistantMessage(
             content=[
-                ToolCallContent(id=f"call_{i}", name="test_tool", arguments={"param": "same_value"})
+                ToolCallContent(
+                    id=f"call_{i}",
+                    name="test_tool",
+                    arguments={"param": "same_value"}
+                )
             ],
             stop_reason=StopReason.TOOL_USE,
             timestamp=int(time.time() * 1000),
@@ -513,16 +548,15 @@ async def test_loop_detection_threshold_customization(mock_tool: MockTool):
         steering_queue=steering_queue,
         loop_detection=LoopDetectionConfig(
             same_call_threshold=3,  # Higher threshold for steering
-            same_tool_threshold=2,  # Lower threshold for event
-        ),
+            same_tool_threshold=2   # Lower threshold for event
+        )
     )
 
     context = Context()
-    prompts = [
-        UserMessage(
-            content=[TextContent(text="Please use the tool")], timestamp=int(time.time() * 1000)
-        )
-    ]
+    prompts = [UserMessage(
+        content=[TextContent(text="Please use the tool")],
+        timestamp=int(time.time() * 1000)
+    )]
 
     events = []
     loop_found = False
@@ -541,14 +575,18 @@ async def test_loop_detection_threshold_customization(mock_tool: MockTool):
             break
 
     # Check that LoopDetectedEvent was emitted with custom threshold
-    assert loop_found, f"Expected LoopDetectedEvent, got {len(events)} events"
+    assert loop_found, (
+        f"Expected LoopDetectedEvent, got {len(events)} events"
+    )
 
     # Now test the steering threshold separately with a different set of calls
     responses2 = [
         AssistantMessage(
             content=[
                 ToolCallContent(
-                    id=f"call2_{i}", name="test_tool", arguments={"param": "same_value"}
+                    id=f"call2_{i}",
+                    name="test_tool",
+                    arguments={"param": "same_value"}
                 )
             ],
             stop_reason=StopReason.TOOL_USE,
@@ -566,8 +604,8 @@ async def test_loop_detection_threshold_customization(mock_tool: MockTool):
         steering_queue=steering_queue2,
         loop_detection=LoopDetectionConfig(
             same_call_threshold=2,  # Lower threshold for steering
-            same_tool_threshold=5,  # Higher threshold to not interfere
-        ),
+            same_tool_threshold=5   # Higher threshold to not interfere
+        )
     )
 
     context2 = Context()
@@ -588,4 +626,6 @@ async def test_loop_detection_threshold_customization(mock_tool: MockTool):
             break
 
     # Check that steering was triggered with custom threshold
-    assert steer_found, f"Expected SteerEvent, got {len(events2)} events"
+    assert steer_found, (
+        f"Expected SteerEvent, got {len(events2)} events"
+    )

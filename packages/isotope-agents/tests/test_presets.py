@@ -22,14 +22,8 @@ class TestPresets:
         """Coding preset has read, write, edit, bash, grep, glob, web tools."""
         tool_names = {t.name for t in CODING.tools}
         assert tool_names == {
-            "read_file",
-            "write_file",
-            "edit_file",
-            "bash",
-            "grep",
-            "glob_tool",
-            "web_search",
-            "web_fetch",
+            "read_file", "write_file", "edit_file", "bash", "grep", "glob_tool",
+            "web_search", "web_fetch",
         }
 
     def test_assistant_preset_no_write(self) -> None:

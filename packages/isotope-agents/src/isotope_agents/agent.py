@@ -13,11 +13,7 @@ from isotope_core.providers.base import Provider
 from isotope_core.tools import Tool
 from isotope_core.types import UserMessage, AgentEvent, TurnEndEvent, TextContent
 
-from isotope_agents.compaction import (
-    CompactionResult,
-    compact_messages,
-    _estimate_messages_tokens,
-)
+from isotope_agents.compaction import CompactionResult, compact_messages, _estimate_messages_tokens
 from isotope_agents.presets import Preset, get_preset
 from isotope_agents.session import SessionStore
 from isotope_agents.tool_loader import load_tools_from_config
@@ -99,7 +95,9 @@ class IsotopeAgent:
         if system_prompt:
             self._system_prompt = system_prompt
         else:
-            self._system_prompt = self._preset.format_system_prompt(cwd=self._workspace)
+            self._system_prompt = self._preset.format_system_prompt(
+                cwd=self._workspace
+            )
 
         # Build tool list
         self._tools = list(self._preset.tools)
@@ -264,11 +262,7 @@ class IsotopeAgent:
         if result.summary and result.messages_compacted > 0:
             # Build new message list: summary as a system-like user message + kept messages
             summary_msg = UserMessage(
-                content=[
-                    TextContent(
-                        text=f"[Compacted conversation summary]\n{result.summary}"
-                    )
-                ],
+                content=[TextContent(text=f"[Compacted conversation summary]\n{result.summary}")],
                 timestamp=int(time.time() * 1000),
                 pinned=True,
             )

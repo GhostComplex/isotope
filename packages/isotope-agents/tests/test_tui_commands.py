@@ -139,9 +139,7 @@ class TestTools:
 
     @pytest.mark.asyncio
     async def test_toggle_on(self) -> None:
-        handler, state = _make_handler(
-            tools_enabled=False, preset=_FakePreset(["bash"])
-        )
+        handler, state = _make_handler(tools_enabled=False, preset=_FakePreset(["bash"]))
         result = await handler.handle("/tools")
         assert state.tools_enabled is True
         assert "enabled" in result.message.lower()
@@ -445,9 +443,7 @@ class TestEdgeCases:
         ]
         for cmd in commands:
             result = await handler.handle(cmd)
-            assert isinstance(result, CommandResult), (
-                f"{cmd} did not return CommandResult"
-            )
+            assert isinstance(result, CommandResult), f"{cmd} did not return CommandResult"
 
 
 # ---------------------------------------------------------------------------
