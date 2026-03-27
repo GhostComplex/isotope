@@ -229,9 +229,6 @@ def launch_tui(model: str, preset: str, no_tools: bool, session_id: str | None =
         # Run the TUI
         asyncio.run(tui.run())
 
-    except KeyboardInterrupt:
-        print("\nBye!")
-        sys.exit(0)
     except ImportError as e:
         if "prompt_toolkit" in str(e) or "rich" in str(e):
             print(
