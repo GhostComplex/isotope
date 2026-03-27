@@ -459,9 +459,7 @@ async def agent_loop(
                     # the full tool-call arguments to finish streaming.
                     if hasattr(event, "partial"):
                         assistant_message = event.partial
-                    tc_block = _get_tool_call_block(
-                        assistant_message, event.content_index
-                    )
+                    tc_block = _get_tool_call_block(assistant_message, event.content_index)
                     if tc_block is not None:
                         streamed_tool_start_ids.add(tc_block.id)
                         # Args are empty here because the tool-call arguments
