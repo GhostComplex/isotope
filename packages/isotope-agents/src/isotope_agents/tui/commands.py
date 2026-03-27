@@ -69,8 +69,10 @@ class TUIState:
 
 BETWEEN_MESSAGE_COMMANDS = (
     "/tools          Toggle tools",
-    "/model <name>   Switch model",
+    "/model [name]   Switch model (no arg = show list)",
     "/system <text>  Change system prompt",
+    "/setup          Reconfigure provider/model/prompt",
+    "/provider       Show current provider info",
     "/clear          Clear conversation",
     "/compact        Compact conversation history",
     "/history        Show usage stats",
@@ -123,6 +125,8 @@ class CommandHandler:
             "/tools": self._handle_tools,
             "/model": self._handle_model,
             "/system": self._handle_system,
+            "/setup": self._handle_setup,
+            "/provider": self._handle_provider,
             "/clear": self._handle_clear,
             "/compact": self._handle_compact,
             "/history": self._handle_history,
@@ -164,9 +168,18 @@ class CommandHandler:
             return CommandResult(
                 message=f"Model switched to: {self.state.model}",
                 style="model",
-                action="rebuild_agent",
+                action="switch_model",
             )
-        return CommandResult(message="Usage: /model <name>", style="warn")
+        # No arg — interactive model list (TUI must handle)
+        return CommandResult(action="model_interactive")
+
+    async def _handle_setup(self, arg: str) -> CommandResult:
+        # Interactive wizard — TUI must handle
+        return CommandResult(action="setup_wizard")
+
+    async def _handle_provider(self, arg: str) -> CommandResult:
+        # TUI renders this with live config data
+        return CommandResult(action="show_provider")
 
     async def _handle_system(self, arg: str) -> CommandResult:
         if arg == "clear":
@@ -231,7 +244,7 @@ class CommandHandler:
 
     @staticmethod
     def _handle_unknown(cmd: str) -> CommandResult:
-        known = "/tools /model /system /clear /compact /history /sessions /debug /help /quit"
+        known = "/tools /model /system /setup /provider /clear /compact /history /sessions /debug /help /quit"
         return CommandResult(
             message=f"Unknown command: {cmd}\nCommands: {known}",
             style="warn",
