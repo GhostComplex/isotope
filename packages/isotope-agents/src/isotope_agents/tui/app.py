@@ -384,8 +384,25 @@ class TUI:
 
         return agent
 
-    def _rebuild_agent(self, *, keep_history: bool = True) -> None:
-        """Rebuild the agent (e.g. after model / tool change)."""
+    def _rebuild_agent(
+        self,
+        *,
+        keep_history: bool = True,
+        new_model: str | None = None,
+        new_config: IsotopeConfig | None = None,
+    ) -> None:
+        """Rebuild the agent (e.g. after model / tool / provider change).
+
+        Args:
+            keep_history: Preserve existing message history.
+            new_model: Switch to a different model.
+            new_config: Switch to a different provider config.
+        """
+        if new_config is not None:
+            self.config = new_config
+        if new_model is not None:
+            self.model = new_model
+            self._state.model = new_model
         old_messages = (
             self.agent.core.messages[:] if self.agent and keep_history else []
         )
@@ -417,6 +434,14 @@ class TUI:
             self._rebuild_agent(keep_history=False)
             if self.agent and self.agent.session_id:
                 _print(f"New session: {self.agent.session_id}", style="info")
+        elif result.action == "switch_model":
+            await self._execute_switch_model(self._state.model)
+        elif result.action == "model_interactive":
+            await self._execute_model_interactive()
+        elif result.action == "setup_wizard":
+            await self._execute_setup_wizard()
+        elif result.action == "show_provider":
+            self._execute_show_provider()
         elif result.action == "compact":
             await self._execute_compact()
         elif result.action == "history":
@@ -480,6 +505,180 @@ class TUI:
 
         except Exception as e:
             _print(f"Error listing sessions: {e}", style="warn")
+
+    # -- /model, /setup, /provider actions -----------------------------------
+
+    async def _execute_switch_model(self, model: str) -> None:
+        """Switch model, persist to config, and rebuild agent."""
+        self.config = IsotopeConfig(
+            provider=self.config.provider,
+            model=model,
+            preset=self.config.preset,
+            system_prompt=self.config.system_prompt,
+            debug=self.config.debug,
+            sessions_dir=self.config.sessions_dir,
+            skills=self.config.skills,
+            tools=self.config.tools,
+            mcp_servers=self.config.mcp_servers,
+        )
+        save_config(self.config)
+        self._rebuild_agent(new_model=model)
+        _print(f"✓ Switched to {model} (saved to settings.json)", style="info")
+
+    async def _execute_model_interactive(self) -> None:
+        """Interactive model selection (no arg to /model)."""
+        _print("\nFetching available models...", style="dim")
+        models = await fetch_available_models(
+            self.config.provider.base_url,
+            api_key=self.config.provider.api_key,
+            provider_type=self.config.provider.type,
+        )
+
+        if not models:
+            _print("Could not fetch models. Use /model <name> directly.", style="warn")
+            return
+
+        # Separate overflow hint
+        hint_entry = ""
+        if models and models[-1].startswith("("):
+            hint_entry = models.pop()
+
+        # Current model first
+        current = self.model
+        if current in models:
+            models.remove(current)
+            models.insert(0, current)
+
+        _print("Available models:", style="info")
+        for i, m in enumerate(models, 1):
+            suffix = " (current)" if m == current else ""
+            _print(f"  {i}. {m}{suffix}", style="dim")
+        if hint_entry:
+            _print(f"  {hint_entry}", style="dim")
+
+        choice = await self._input_handler.get_user_input(
+            "\nModel [1] (Enter to cancel): "
+        )
+        choice = choice.strip()
+        if not choice:
+            _print("Cancelled.", style="dim")
+            return
+
+        try:
+            idx = int(choice) - 1
+            if not (0 <= idx < len(models)):
+                idx = -1
+        except ValueError:
+            # Typed a model name directly
+            await self._execute_switch_model(choice)
+            return
+
+        if idx >= 0:
+            await self._execute_switch_model(models[idx])
+
+    async def _execute_setup_wizard(self) -> None:
+        """Run the /setup reconfigure wizard."""
+        _print("\nCurrent configuration:", style="info")
+        ptype = self.config.provider.type
+        label = PROVIDER_LABELS.get(ptype, ptype)
+        _print(f"  Provider: {label}", style="dim")
+        _print(f"  Model: {self.model}", style="dim")
+        sp_mode = self.config.system_prompt
+        if sp_mode == "custom":
+            _print("  System prompt: custom (agent.md)", style="dim")
+        else:
+            _print(f"  System prompt: {sp_mode}", style="dim")
+
+        _print(
+            "\nReconfigure: (p)rovider / (m)odel / (s)ystem prompt / (a)ll",
+            style="info",
+        )
+        choice = await self._input_handler.get_user_input(
+            "What to change? [a] (Enter to cancel): "
+        )
+        choice = choice.strip().lower()
+        if not choice:
+            _print("Cancelled.", style="dim")
+            return
+
+        if choice in ("a", "all"):
+            # Full re-run of FRE wizard
+            new_config = await self._run_setup_wizard()
+            self._rebuild_agent(new_config=new_config)
+            _print(f"✓ Reconfigured — {self.model}", style="info")
+        elif choice in ("p", "provider"):
+            new_config = await self._run_setup_wizard()
+            self._rebuild_agent(new_config=new_config)
+            _print(f"✓ Provider changed — {self.model}", style="info")
+        elif choice in ("m", "model"):
+            await self._execute_model_interactive()
+        elif choice in ("s", "system", "prompt"):
+            await self._execute_setup_prompt()
+        else:
+            _print(f"Unknown option: {choice}", style="warn")
+
+    async def _execute_setup_prompt(self) -> None:
+        """Change system prompt mode and persist."""
+        _print(
+            "\nSystem prompt: (d)efault preset / (c)ustom / Enter to cancel",
+            style="info",
+        )
+        choice = await self._input_handler.get_user_input("Choice [d]: ")
+        choice = choice.strip().lower()
+        if not choice:
+            _print("Cancelled.", style="dim")
+            return
+
+        if choice in ("c", "custom"):
+            text = await self._input_handler.get_user_input("System prompt: ")
+            text = text.strip()
+            if text:
+                save_agent_md(text)
+                prompt_mode = "custom"
+                self.custom_system_prompt = text
+                self._state.custom_system_prompt = text
+            else:
+                prompt_mode = "default"
+                self.custom_system_prompt = None
+                self._state.custom_system_prompt = None
+        else:
+            prompt_mode = "default"
+            self.custom_system_prompt = None
+            self._state.custom_system_prompt = None
+
+        self.config = IsotopeConfig(
+            provider=self.config.provider,
+            model=self.config.model,
+            preset=self.config.preset,
+            system_prompt=prompt_mode,
+            debug=self.config.debug,
+            sessions_dir=self.config.sessions_dir,
+            skills=self.config.skills,
+            tools=self.config.tools,
+            mcp_servers=self.config.mcp_servers,
+        )
+        save_config(self.config)
+        self._rebuild_agent()
+        _print(f"✓ System prompt: {prompt_mode} (saved)", style="info")
+
+    def _execute_show_provider(self) -> None:
+        """Show current provider/model/system prompt info."""
+        ptype = self.config.provider.type
+        label = PROVIDER_LABELS.get(ptype, ptype)
+        base_url = self.config.provider.base_url
+        _print(f"Provider: {label} ({base_url})", style="info")
+        _print(f"Model: {self.model}", style="model")
+        sp_mode = self.config.system_prompt
+        if sp_mode == "custom":
+            prompt_text = load_agent_md()
+            preview = (
+                (prompt_text[:60] + "...") if len(prompt_text) > 60 else prompt_text
+            )
+            _print(f"System prompt: custom — {preview}", style="dim")
+        elif sp_mode == "default":
+            _print(f"System prompt: {self.preset.name} preset default", style="dim")
+        else:
+            _print("System prompt: not configured", style="dim")
 
     async def _read_input_during_stream(self) -> None:
         """Read input concurrently during streaming."""

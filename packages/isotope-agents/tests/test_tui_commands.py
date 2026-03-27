@@ -178,7 +178,7 @@ class TestModel:
         result = await handler.handle("/model new-model")
         assert state.model == "new-model"
         assert "new-model" in result.message
-        assert result.action == "rebuild_agent"
+        assert result.action == "switch_model"
         assert result.should_quit is False
 
     @pytest.mark.asyncio
@@ -186,22 +186,60 @@ class TestModel:
         handler, state = _make_handler(model="old-model")
         result = await handler.handle("/model")
         assert state.model == "old-model"  # unchanged
-        assert "Usage" in result.message
-        assert result.style == "warn"
-        assert result.action is None
+        assert result.action == "model_interactive"
 
     @pytest.mark.asyncio
     async def test_model_with_extra_spaces(self) -> None:
         handler, state = _make_handler()
         result = await handler.handle("/model    gpt-4o  ")
         assert state.model == "gpt-4o"
-        assert result.action == "rebuild_agent"
+        assert result.action == "switch_model"
 
     @pytest.mark.asyncio
     async def test_model_preserves_case(self) -> None:
         handler, state = _make_handler()
         await handler.handle("/model Claude-Opus-4.6")
         assert state.model == "Claude-Opus-4.6"
+
+
+# ---------------------------------------------------------------------------
+# /setup
+# ---------------------------------------------------------------------------
+
+
+class TestSetup:
+    @pytest.mark.asyncio
+    async def test_setup_returns_action(self) -> None:
+        handler, _state = _make_handler()
+        result = await handler.handle("/setup")
+        assert result.action == "setup_wizard"
+        assert result.should_quit is False
+
+    @pytest.mark.asyncio
+    async def test_setup_ignores_arg(self) -> None:
+        handler, _state = _make_handler()
+        result = await handler.handle("/setup all")
+        assert result.action == "setup_wizard"
+
+
+# ---------------------------------------------------------------------------
+# /provider
+# ---------------------------------------------------------------------------
+
+
+class TestProvider:
+    @pytest.mark.asyncio
+    async def test_provider_returns_action(self) -> None:
+        handler, _state = _make_handler()
+        result = await handler.handle("/provider")
+        assert result.action == "show_provider"
+        assert result.should_quit is False
+
+    @pytest.mark.asyncio
+    async def test_provider_ignores_arg(self) -> None:
+        handler, _state = _make_handler()
+        result = await handler.handle("/provider something")
+        assert result.action == "show_provider"
 
 
 # ---------------------------------------------------------------------------
@@ -388,6 +426,8 @@ class TestUnknownCommand:
         result = await handler.handle("/xyz")
         assert "/tools" in result.message
         assert "/quit" in result.message
+        assert "/setup" in result.message
+        assert "/provider" in result.message
 
 
 # ---------------------------------------------------------------------------
