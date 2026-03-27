@@ -500,7 +500,7 @@ source = { virtual = "." }
 
 [[package]]
 name = "isotope-agents"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/isotope-agents" }
 dependencies = [
     { name = "httpx" },
@@ -550,7 +550,7 @@ dev = [
 
 [[package]]
 name = "isotope-core"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/isotope-core" }
 dependencies = [
     { name = "pydantic" },
