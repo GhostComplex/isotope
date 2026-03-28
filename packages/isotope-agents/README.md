@@ -24,11 +24,11 @@ pip install 'isotope-agents[all]'
 
 ```bash
 # Run directly without installing (uses uvx)
-uvx --from 'isotope-agents[tui]' isotope chat
-uvx --from 'isotope-agents[tui]' isotope run "Explain this project"
+uvx 'isotope-agents[tui]'
+uvx 'isotope-agents[tui]' run "Explain this project"
 
 # List saved sessions
-uvx --from isotope-agents isotope sessions
+uvx isotope-agents sessions
 ```
 
 ### From Source (monorepo)

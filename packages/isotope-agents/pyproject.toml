@@ -44,6 +44,7 @@ dev = [
 
 [project.scripts]
 isotope = "isotope_agents.cli:main"
+isotope-agents = "isotope_agents.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/GhostComplex/isotope"

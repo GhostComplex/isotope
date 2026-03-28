@@ -387,10 +387,9 @@ def main() -> NoReturn:
     parser = create_parser()
     args = parser.parse_args()
 
-    # Handle no command case
+    # Default to chat (TUI) when no command is given
     if not args.command:
-        parser.print_help()
-        sys.exit(1)
+        args.command = "chat"
 
     if args.command == "chat":
         session_id = getattr(args, "session", None)
