@@ -8,8 +8,8 @@ Isotopes is a monorepo with two packages:
 
 | Package | Location | Description |
 |---|---|---|
-| **isotopes-core** | [`packages/isotope-core/`](packages/isotope-core/) | Agent loop engine, LLM providers, middleware, events, context management |
-| **isotopes** | [`packages/isotope-agents/`](packages/isotope-agents/) | Tools, TUI, CLI, sessions, RPC protocol, presets, skills, MCP integration |
+| **isotopes-core** | [`packages/isotopes-core/`](packages/isotopes-core/) | Agent loop engine, LLM providers, middleware, events, context management |
+| **isotopes** | [`packages/isotopes/`](packages/isotopes/) | Tools, TUI, CLI, sessions, RPC protocol, presets, skills, MCP integration |
 
 **isotopes-core** is the foundation. It provides:
 - Agent loop (plan → act → observe → repeat)
@@ -72,14 +72,14 @@ uv run isotopes rpc
 
 ```bash
 # Run all tests
-uv run pytest packages/isotope-core/tests/ -q
-uv run pytest packages/isotope-agents/tests/ -q
+uv run pytest packages/isotopes-core/tests/ -q
+uv run pytest packages/isotopes/tests/ -q
 
 # Lint
 uv run ruff check packages/
 
 # Type check
-uv run mypy packages/isotope-core/src/
+uv run mypy packages/isotopes-core/src/
 ```
 
 ### Publishing to PyPI
@@ -96,12 +96,12 @@ gh release create v0.0.1 --title "isotopes v0.0.1"
 
 ## Configuration
 
-Isotope reads configuration from `~/.isotopes/config.yaml`. See the [isotopes README](packages/isotope-agents/README.md#configuration) for details.
+Isotope reads configuration from `~/.isotopes/config.yaml`. See the [isotopes README](packages/isotopes/README.md#configuration) for details.
 
 ## Documentation
 
-- [isotopes-core API](packages/isotope-core/README.md) — engine, providers, middleware, tools
-- [isotopes guide](packages/isotope-agents/README.md) — CLI, tools, presets, RPC, sessions
+- [isotopes-core API](packages/isotopes-core/README.md) — engine, providers, middleware, tools
+- [isotopes guide](packages/isotopes/README.md) — CLI, tools, presets, RPC, sessions
 - [Project Requirements](docs/PRD.md) — design goals and product requirements
 - [Design Specs](docs/specs/) — milestone design documents
 

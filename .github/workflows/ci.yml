@@ -28,13 +28,13 @@ jobs:
         run: uv sync --package isotopes-core --python ${{ matrix.python-version }}
 
       - name: Test isotopes-core
-        run: uv run --package isotopes-core pytest packages/isotope-core/tests/ -m "not integration" -q
+        run: uv run --package isotopes-core pytest packages/isotopes-core/tests/ -m "not integration" -q
 
       - name: Install dependencies (isotopes + TUI)
         run: uv sync --package isotopes --extra tui --python ${{ matrix.python-version }}
 
       - name: Test isotopes
-        run: uv run --package isotopes pytest packages/isotope-agents/tests/ -q
+        run: uv run --package isotopes pytest packages/isotopes/tests/ -q
 
   lint:
     runs-on: ubuntu-latest
