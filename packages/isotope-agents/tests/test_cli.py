@@ -605,8 +605,6 @@ class TestCLIIntegration:
 
     def test_cli_no_command_defaults_to_chat(self) -> None:
         """CLI with no command defaults to 'chat'."""
-        from unittest.mock import patch
-
         from isotope_agents.cli import create_parser
 
         parser = create_parser()
