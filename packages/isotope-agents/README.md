@@ -1,6 +1,6 @@
-# isotope-agents
+# isotopes
 
-Agent framework built on [isotope-core](../isotope-core/) — provides tools, a TUI, CLI, session persistence, RPC protocol, presets, skills, and MCP integration.
+Agent framework built on [isotopes-core](../isotope-core/) — provides tools, a TUI, CLI, session persistence, RPC protocol, presets, skills, and MCP integration.
 
 ## Installation
 
@@ -8,34 +8,34 @@ Agent framework built on [isotope-core](../isotope-core/) — provides tools, a 
 
 ```bash
 # uv
-uv add isotope-agents
-uv add 'isotope-agents[tui]'
-uv add 'isotope-agents[mcp]'
-uv add 'isotope-agents[all]'
+uv add isotopes
+uv add 'isotopes[tui]'
+uv add 'isotopes[mcp]'
+uv add 'isotopes[all]'
 
 # pip
-pip install isotope-agents
-pip install 'isotope-agents[tui]'
-pip install 'isotope-agents[mcp]'
-pip install 'isotope-agents[all]'
+pip install isotopes
+pip install 'isotopes[tui]'
+pip install 'isotopes[mcp]'
+pip install 'isotopes[all]'
 ```
 
 ## Quick Start
 
 ```bash
 # Run directly without installing (uses uvx)
-uvx 'isotope-agents[tui]'
-uvx 'isotope-agents[tui]' run "Explain this project"
+uvx 'isotopes[tui]'
+uvx 'isotopes[tui]' run "Explain this project"
 
 # List saved sessions
-uvx isotope-agents sessions
+uvx isotopes sessions
 ```
 
 ### From Source (monorepo)
 
 ```bash
 # Sync with TUI support
-uv sync --package isotope-agents --extra tui
+uv sync --package isotopes --extra tui
 
 # Launch interactive TUI
 uv run isotope --model claude-opus-4.6 --preset coding chat
@@ -48,7 +48,7 @@ uv run isotope run "Explain this project"
 
 | Command | Description |
 |---------|-------------|
-| `isotope chat` | Launch interactive TUI (requires `isotope-agents[tui]`) |
+| `isotope chat` | Launch interactive TUI (requires `isotopes[tui]`) |
 | `isotope run <prompt>` | Execute a one-shot prompt, stream response to stdout |
 | `isotope rpc` | Start JSONL-over-stdio RPC server for embedding |
 | `isotope sessions` | List saved sessions with message counts and previews |
@@ -163,7 +163,7 @@ mcp:
       url: http://localhost:3001/sse
 ```
 
-Requires the `mcp` extra: `uv add 'isotope-agents[mcp]'` or `pip install 'isotope-agents[mcp]'`
+Requires the `mcp` extra: `uv add 'isotopes[mcp]'` or `pip install 'isotopes[mcp]'`
 
 ## RPC Protocol
 

@@ -1,6 +1,6 @@
-# isotope-core
+# isotopes-core
 
-Core primitives for building AI agent loops. Provides the engine that powers isotope — a turn-based execution loop, LLM provider abstraction, middleware system, typed event streaming, context management, and a tool framework.
+Core primitives for building AI agent loops. Provides the engine that powers isotopes — a turn-based execution loop, LLM provider abstraction, middleware system, typed event streaming, context management, and a tool framework.
 
 ## Installation
 
@@ -8,28 +8,28 @@ Core primitives for building AI agent loops. Provides the engine that powers iso
 
 ```bash
 # uv
-uv add isotope-core
-uv add 'isotope-core[openai]'
-uv add 'isotope-core[anthropic]'
-uv add 'isotope-core[all]'
+uv add isotopes-core
+uv add 'isotopes-core[openai]'
+uv add 'isotopes-core[anthropic]'
+uv add 'isotopes-core[all]'
 
 # pip
-pip install isotope-core              # core only (pydantic)
-pip install isotope-core[openai]      # + OpenAI provider
-pip install isotope-core[anthropic]   # + Anthropic provider
-pip install isotope-core[all]         # all providers + tiktoken
+pip install isotopes-core              # core only (pydantic)
+pip install isotopes-core[openai]      # + OpenAI provider
+pip install isotopes-core[anthropic]   # + Anthropic provider
+pip install isotopes-core[all]         # all providers + tiktoken
 ```
 
 ### From Source (monorepo)
 
 ```bash
-# Sync just isotope-core into the workspace environment
-uv sync --package isotope-core
+# Sync just isotopes-core into the workspace environment
+uv sync --package isotopes-core
 
 # Include optional provider extras
-uv sync --package isotope-core --extra openai
-uv sync --package isotope-core --extra anthropic
-uv sync --package isotope-core --extra all
+uv sync --package isotopes-core --extra openai
+uv sync --package isotopes-core --extra anthropic
+uv sync --package isotopes-core --extra all
 ```
 
 ## API Overview
