@@ -1,15 +1,16 @@
-name: Publish to PyPI
+name: Publish isotope-core to PyPI
 
 on:
   release:
     types: [published]
 
 permissions:
-  id-token: write  # Required for trusted publishing
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: startsWith(github.event.release.tag_name, 'core-v')
 
     steps:
       - uses: actions/checkout@v4
@@ -24,25 +25,23 @@ jobs:
       - name: Build isotope-core
         run: uv build --package isotope-core --out-dir dist/
 
-      - name: Build isotope-agents
-        run: uv build --package isotope-agents --out-dir dist/
-
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-core
           path: dist/
 
   publish:
     needs: build
     runs-on: ubuntu-latest
+    if: startsWith(github.event.release.tag_name, 'core-v')
     environment: pypi
 
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: dist
+          name: dist-core
           path: dist/
 
       - name: Publish to PyPI
