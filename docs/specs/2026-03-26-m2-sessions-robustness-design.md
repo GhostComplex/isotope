@@ -14,12 +14,12 @@ Persistent JSONL sessions, polished markdown output, loop detection, config file
 
 ## Success Criteria
 
-- `isotope chat` auto-saves conversation to `~/.isotope/sessions/<id>.jsonl`
-- `isotope sessions` lists previous sessions with timestamps + summaries
-- `isotope chat --session <id>` resumes a previous session
+- `isotopes chat` auto-saves conversation to `~/.isotopes/sessions/<id>.jsonl`
+- `isotopes sessions` lists previous sessions with timestamps + summaries
+- `isotopes chat --session <id>` resumes a previous session
 - Tool call repeated 3x with same args → steering injection
 - Code blocks have syntax highlighting via `rich`
-- `~/.isotope/config.yaml` provides defaults (model, preset, etc.)
+- `~/.isotopes/config.yaml` provides defaults (model, preset, etc.)
 - All existing tests still pass + new tests for each subtask
 
 ---
@@ -29,7 +29,7 @@ Persistent JSONL sessions, polished markdown output, loop detection, config file
 ### M2.1: JSONL session format + persistence
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/session.py`
+- `packages/isotopes/src/isotopes/session.py`
 
 **~200 LOC, M**
 
@@ -44,10 +44,10 @@ class SessionEntry:
     data: dict         # type-specific payload
 
 class SessionStore:
-    """Manages session persistence in ~/.isotope/sessions/."""
+    """Manages session persistence in ~/.isotopes/sessions/."""
 
     def __init__(self, sessions_dir: Path | None = None):
-        self.sessions_dir = sessions_dir or Path.home() / ".isotope" / "sessions"
+        self.sessions_dir = sessions_dir or Path.home() / ".isotopes" / "sessions"
 
     def create(self, model: str, preset: str) -> str:
         """Create a new session, return session ID."""
@@ -62,21 +62,21 @@ class SessionStore:
         """List all sessions with metadata (id, start time, message count, last message preview)."""
 
     def entries_to_messages(self, entries: list[SessionEntry]) -> list[Message]:
-        """Convert JSONL entries back to isotope-core Message objects for session resume."""
+        """Convert JSONL entries back to isotopes-core Message objects for session resume."""
 ```
 
 Session ID: short UUID (8 chars), e.g. `a1b2c3d4`.
 
 File structure:
 ```
-~/.isotope/sessions/
+~/.isotopes/sessions/
   a1b2c3d4.jsonl
   e5f6g7h8.jsonl
 ```
 
 Each line is a JSON object with `type`, `timestamp`, and type-specific fields per PRD §6.
 
-**Tests:** `packages/isotope-agents/tests/test_session.py` — test create, append, load, list, round-trip message conversion.
+**Tests:** `packages/isotopes/tests/test_session.py` — test create, append, load, list, round-trip message conversion.
 
 **Commit after done.**
 
@@ -85,8 +85,8 @@ Each line is a JSON object with `type`, `timestamp`, and type-specific fields pe
 ### M2.2: Wire session persistence into TUI + IsotopeAgent
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/agent.py` (add session hooks)
-- `packages/isotope-agents/src/isotope_agents/tui/app.py` (wire auto-save)
+- `packages/isotopes/src/isotopes/agent.py` (add session hooks)
+- `packages/isotopes/src/isotopes/tui/app.py` (wire auto-save)
 
 **~100 LOC changes, S**
 
@@ -106,7 +106,7 @@ class IsotopeAgent:
 
 If `session_id` is provided, load and replay messages from the session. If not, create a new session.
 
-**Tests:** Update `packages/isotope-agents/tests/test_agent.py` — verify session entries are written.
+**Tests:** Update `packages/isotopes/tests/test_agent.py` — verify session entries are written.
 
 **Commit after done.**
 
@@ -115,19 +115,19 @@ If `session_id` is provided, load and replay messages from the session. If not, 
 ### M2.3: Session CLI commands
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/cli.py` (add `sessions` subcommand + `--session` flag)
-- `packages/isotope-agents/src/isotope_agents/tui/app.py` (add `/sessions` TUI command)
+- `packages/isotopes/src/isotopes/cli.py` (add `sessions` subcommand + `--session` flag)
+- `packages/isotopes/src/isotopes/tui/app.py` (add `/sessions` TUI command)
 
 **~80 LOC, S**
 
 CLI:
 ```bash
 # List sessions
-isotope sessions
-isotope sessions --limit 10
+isotopes sessions
+isotopes sessions --limit 10
 
 # Resume a session
-isotope chat --session a1b2c3d4
+isotopes chat --session a1b2c3d4
 
 # Output example:
 # ID        Started              Messages  Last message
@@ -137,7 +137,7 @@ isotope chat --session a1b2c3d4
 
 TUI: `/sessions` command shows the same listing inline.
 
-**Tests:** `packages/isotope-agents/tests/test_cli.py` — add tests for sessions subcommand.
+**Tests:** `packages/isotopes/tests/test_cli.py` — add tests for sessions subcommand.
 
 **Commit after done.**
 
@@ -146,8 +146,8 @@ TUI: `/sessions` command shows the same listing inline.
 ### M2.4: Loop detection
 
 **Files:**
-- `packages/isotope-core/src/isotope_core/loop.py` (add loop detection to agent loop)
-- `packages/isotope-core/src/isotope_core/types.py` (add `LoopDetectedEvent`)
+- `packages/isotopes-core/src/isotopes_core/loop.py` (add loop detection to agent loop)
+- `packages/isotopes-core/src/isotopes_core/types.py` (add `LoopDetectedEvent`)
 
 **~80 LOC, S**
 
@@ -173,7 +173,7 @@ In the agent loop, after each tool call:
 
 Add `LoopDetectedEvent` to `AgentEvent` union.
 
-**Tests:** `packages/isotope-core/tests/test_loop_detection.py`
+**Tests:** `packages/isotopes-core/tests/test_loop_detection.py`
 
 **Commit after done.**
 
@@ -182,7 +182,7 @@ Add `LoopDetectedEvent` to `AgentEvent` union.
 ### M2.5: Rich markdown rendering
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/tui/render.py` (enhance existing)
+- `packages/isotopes/src/isotopes/tui/render.py` (enhance existing)
 
 **~100 LOC, M**
 
@@ -192,9 +192,9 @@ Replace plain text output with `rich` library rendering:
 - Tool output: display in a Panel with tool name as title
 - Streaming: buffer text, render markdown on message completion (stream plain text, render final)
 
-Add `rich` as a dependency of isotope-agents (in `[tui]` extras group).
+Add `rich` as a dependency of isotopes (in `[tui]` extras group).
 
-**Tests:** `packages/isotope-agents/tests/test_render.py` — test markdown rendering output.
+**Tests:** `packages/isotopes/tests/test_render.py` — test markdown rendering output.
 
 **Commit after done.**
 
@@ -203,16 +203,16 @@ Add `rich` as a dependency of isotope-agents (in `[tui]` extras group).
 ### M2.6: Config file
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/config.py`
+- `packages/isotopes/src/isotopes/config.py`
 
 **~80 LOC, S**
 
 ```yaml
-# ~/.isotope/config.yaml
+# ~/.isotopes/config.yaml
 model: claude-sonnet-4-20250514
 preset: coding
 debug: false
-sessions_dir: ~/.isotope/sessions
+sessions_dir: ~/.isotopes/sessions
 provider:
   base_url: http://localhost:8080
   api_key: ${ISOTOPE_API_KEY}  # env var expansion
@@ -224,18 +224,18 @@ class IsotopeConfig:
     model: str = "default"
     preset: str = "coding"
     debug: bool = False
-    sessions_dir: str = "~/.isotope/sessions"
+    sessions_dir: str = "~/.isotopes/sessions"
     provider: dict | None = None
 
 def load_config(path: Path | None = None) -> IsotopeConfig:
-    """Load config from ~/.isotope/config.yaml, with env var expansion."""
+    """Load config from ~/.isotopes/config.yaml, with env var expansion."""
 ```
 
 Config priority: CLI flags > env vars > config file > defaults.
 
-Wire into CLI (cli.py) so `isotope chat` picks up defaults from config.
+Wire into CLI (cli.py) so `isotopes chat` picks up defaults from config.
 
-**Tests:** `packages/isotope-agents/tests/test_config.py`
+**Tests:** `packages/isotopes/tests/test_config.py`
 
 **Commit after done.**
 
@@ -243,10 +243,10 @@ Wire into CLI (cli.py) so `isotope chat` picks up defaults from config.
 
 ### M2.7: Clean up + verify
 
-- Verify all isotope-core tests pass (should be ~450+)
-- Verify all isotope-agents tests pass (should be ~100+)
+- Verify all isotopes-core tests pass (should be ~450+)
+- Verify all isotopes tests pass (should be ~100+)
 - `ruff check` + lint clean
-- Update `packages/isotope-agents/pyproject.toml` with `rich` dependency
+- Update `packages/isotopes/pyproject.toml` with `rich` dependency
 - Push, open PR to main
 
 **Commit after done.**
@@ -255,9 +255,9 @@ Wire into CLI (cli.py) so `isotope chat` picks up defaults from config.
 
 ## Notes
 
-- Loop detection goes in isotope-core (it's agent loop behavior, not opinionated)
-- Session persistence goes in isotope-agents (it's opinionated — file format, directory layout)
-- Rich rendering goes in isotope-agents TUI (obviously)
-- Config goes in isotope-agents (opinionated defaults)
+- Loop detection goes in isotopes-core (it's agent loop behavior, not opinionated)
+- Session persistence goes in isotopes (it's opinionated — file format, directory layout)
+- Rich rendering goes in isotopes TUI (obviously)
+- Config goes in isotopes (opinionated defaults)
 - The session format is designed for M3 (compaction entries) and M4 (RPC replay) — don't break forward compatibility
-- `rich` is gated behind `[tui]` extras so isotope-agents stays lightweight for programmatic use
+- `rich` is gated behind `[tui]` extras so isotopes stays lightweight for programmatic use

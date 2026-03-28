@@ -4,7 +4,7 @@
 **Status:** Approved
 **Owner:** Tachikoma
 **Branch:** `user/tachikoma/tui-coverage` (from `main`)
-**Goal:** Raise isotope-agents coverage from 65% to 85%+
+**Goal:** Raise isotopes coverage from 65% to 85%+
 
 ---
 
@@ -26,8 +26,8 @@ TUI code is the main coverage gap: `app.py` 11%, `input.py` 19%, `render.py` 48%
 ### T1: Extract command handler from TUI
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/tui/commands.py` (new)
-- `packages/isotope-agents/src/isotope_agents/tui/app.py` (refactor)
+- `packages/isotopes/src/isotopes/tui/commands.py` (new)
+- `packages/isotopes/src/isotopes/tui/app.py` (refactor)
 
 **~200 LOC, M**
 
@@ -68,7 +68,7 @@ class TUIState:
 
 `app.py` TUI class delegates to `CommandHandler`, keeping only the I/O glue.
 
-**Tests:** `packages/isotope-agents/tests/test_tui_commands.py`
+**Tests:** `packages/isotopes/tests/test_tui_commands.py`
 - Test each command: `/tools`, `/model`, `/system`, `/clear`, `/compact`, `/history`, `/sessions`, `/debug`, `/help`, `/quit`
 - Test unknown commands
 - Test argument parsing edge cases
@@ -80,8 +80,8 @@ class TUIState:
 ### T2: Extract event consumer logic
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/tui/events.py` (new)
-- `packages/isotope-agents/src/isotope_agents/tui/app.py` (refactor)
+- `packages/isotopes/src/isotopes/tui/events.py` (new)
+- `packages/isotopes/src/isotopes/tui/app.py` (refactor)
 
 **~150 LOC, M**
 
@@ -104,7 +104,7 @@ def process_event(event: AgentEvent, *, debug: bool = False) -> list[EventAction
 
 This makes event-to-display-action mapping testable without any terminal. `app.py` calls `process_event()` then applies the actions to the actual display.
 
-**Tests:** `packages/isotope-agents/tests/test_tui_events.py`
+**Tests:** `packages/isotopes/tests/test_tui_events.py`
 - Test each event type: `message_update`, `tool_start`, `tool_end`, `message_end`, `turn_end`, `steer`, `follow_up`, `agent_end`
 - Test debug mode on/off
 - Test edge cases (missing attributes, empty deltas)
@@ -115,7 +115,7 @@ This makes event-to-display-action mapping testable without any terminal. `app.p
 
 ### T3: Test render.py and StreamBuffer
 
-**File:** `packages/isotope-agents/tests/test_render.py` (extend existing)
+**File:** `packages/isotopes/tests/test_render.py` (extend existing)
 
 **~100 LOC, S**
 
@@ -132,7 +132,7 @@ Extend existing render tests to cover the untested code:
 
 ### T4: Test input handler (headless prompt-toolkit)
 
-**File:** `packages/isotope-agents/tests/test_tui_input.py` (new)
+**File:** `packages/isotopes/tests/test_tui_input.py` (new)
 
 **~150 LOC, M**
 
@@ -155,7 +155,7 @@ For prompt-toolkit integration (if available):
 
 ### T5: Improve CLI test coverage
 
-**File:** `packages/isotope-agents/tests/test_cli.py` (extend)
+**File:** `packages/isotopes/tests/test_cli.py` (extend)
 
 **~100 LOC, S**
 
@@ -176,7 +176,7 @@ The existing CLI tests likely cover argument parsing. Add:
 ### T6: Verify + clean up
 
 - Run full test suite, verify all pass
-- Run `pytest --cov` and confirm isotope-agents coverage is 85%+
+- Run `pytest --cov` and confirm isotopes coverage is 85%+
 - `ruff check` clean
 - Push, open PR
 

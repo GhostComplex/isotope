@@ -30,8 +30,8 @@ Handle long sessions without context overflow. Add web capabilities. After M3: m
 ### M3.1: File operation tracking
 
 **Files:**
-- `packages/isotope-core/src/isotope_core/context.py` (add file tracker)
-- `packages/isotope-core/src/isotope_core/loop.py` (hook into tool results)
+- `packages/isotopes-core/src/isotopes_core/context.py` (add file tracker)
+- `packages/isotopes-core/src/isotopes_core/loop.py` (hook into tool results)
 
 **~120 LOC, S**
 
@@ -62,7 +62,7 @@ Integration with agent loop:
 
 Add `FileTracker` to `AgentLoopConfig` so it can be passed through.
 
-**Tests:** `packages/isotope-core/tests/test_file_tracker.py`
+**Tests:** `packages/isotopes-core/tests/test_file_tracker.py`
 
 **Commit after done.**
 
@@ -71,7 +71,7 @@ Add `FileTracker` to `AgentLoopConfig` so it can be passed through.
 ### M3.2: Compaction engine
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/compaction.py`
+- `packages/isotopes/src/isotopes/compaction.py`
 
 **~200 LOC, M**
 
@@ -119,7 +119,7 @@ Summarize the following conversation. Preserve:
 Do NOT include tool call details — just summarize what was done and learned.
 ```
 
-**Tests:** `packages/isotope-agents/tests/test_compaction.py` — test with mock provider.
+**Tests:** `packages/isotopes/tests/test_compaction.py` — test with mock provider.
 
 **Commit after done.**
 
@@ -128,9 +128,9 @@ Do NOT include tool call details — just summarize what was done and learned.
 ### M3.3: Wire compaction into agent + session
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/agent.py` (add compaction trigger)
-- `packages/isotope-agents/src/isotope_agents/session.py` (add compaction entry type)
-- `packages/isotope-agents/src/isotope_agents/tui/app.py` (add `/compact` command)
+- `packages/isotopes/src/isotopes/agent.py` (add compaction trigger)
+- `packages/isotopes/src/isotopes/session.py` (add compaction entry type)
+- `packages/isotopes/src/isotopes/tui/app.py` (add `/compact` command)
 
 **~100 LOC changes, S**
 
@@ -159,7 +159,7 @@ On session resume, compaction entries are treated as system messages with the su
 
 ### M3.4: WebSearchTool
 
-**File:** `packages/isotope-agents/src/isotope_agents/tools/web_search.py`
+**File:** `packages/isotopes/src/isotopes/tools/web_search.py`
 
 **~80 LOC, S**
 
@@ -181,9 +181,9 @@ Implementation:
 - Parse results with basic HTML parsing (regex or html.parser — no heavy deps)
 - Return formatted results: title, URL, snippet
 - Truncate output via `truncate_output()`
-- Add `httpx` as a dependency of isotope-agents
+- Add `httpx` as a dependency of isotopes
 
-**Tests:** `packages/isotope-agents/tests/test_tools_web.py` — test with mocked HTTP responses.
+**Tests:** `packages/isotopes/tests/test_tools_web.py` — test with mocked HTTP responses.
 
 **Commit after done.**
 
@@ -191,7 +191,7 @@ Implementation:
 
 ### M3.5: WebFetchTool
 
-**File:** `packages/isotope-agents/src/isotope_agents/tools/web_fetch.py`
+**File:** `packages/isotopes/src/isotopes/tools/web_fetch.py`
 
 **~100 LOC, S**
 
@@ -215,7 +215,7 @@ Implementation:
 - Truncate to `max_chars`
 - Handle errors gracefully (timeout, 4xx/5xx, connection errors)
 
-**Tests:** `packages/isotope-agents/tests/test_tools_web.py` — add tests with mocked responses.
+**Tests:** `packages/isotopes/tests/test_tools_web.py` — add tests with mocked responses.
 
 **Commit after done.**
 
@@ -223,7 +223,7 @@ Implementation:
 
 ### M3.6: Improved system prompts
 
-**File:** `packages/isotope-agents/src/isotope_agents/presets.py`
+**File:** `packages/isotopes/src/isotopes/presets.py`
 
 **~50 LOC changes, S**
 
@@ -249,10 +249,10 @@ Register `web_search` and `web_fetch` tools in coding and assistant presets.
 
 ### M3.7: Clean up + verify
 
-- Verify all isotope-core tests pass
-- Verify all isotope-agents tests pass
+- Verify all isotopes-core tests pass
+- Verify all isotopes tests pass
 - `ruff check` + lint clean
-- Update `packages/isotope-agents/pyproject.toml` with `httpx` dependency
+- Update `packages/isotopes/pyproject.toml` with `httpx` dependency
 - Push, open PR to main
 
 **Commit after done.**
@@ -261,9 +261,9 @@ Register `web_search` and `web_fetch` tools in coding and assistant presets.
 
 ## Notes
 
-- File tracking goes in isotope-core — it's core infrastructure for compaction
-- Compaction engine goes in isotope-agents — it's opinionated (prompt design, when to trigger)
-- Web tools go in isotope-agents (tool implementations always do)
+- File tracking goes in isotopes-core — it's core infrastructure for compaction
+- Compaction engine goes in isotopes — it's opinionated (prompt design, when to trigger)
+- Web tools go in isotopes (tool implementations always do)
 - DuckDuckGo HTML search is chosen because it needs no API key — good for v1. Can add Brave/SerpAPI later
 - `httpx` is async-native and already popular in the Python ML/AI ecosystem
 - Compaction prompt engineering is critical — it should produce summaries the agent can actually use to continue work

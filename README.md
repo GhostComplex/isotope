@@ -1,17 +1,17 @@
-# isotope
+# isotopes
 
 A pluggable Python agent framework — configure it as a coding agent, personal assistant, or anything in between.
 
 ## Architecture
 
-Isotope is a monorepo with two packages:
+Isotopes is a monorepo with two packages:
 
 | Package | Location | Description |
 |---|---|---|
-| **isotope-core** | [`packages/isotope-core/`](packages/isotope-core/) | Agent loop engine, LLM providers, middleware, events, context management |
-| **isotope-agents** | [`packages/isotope-agents/`](packages/isotope-agents/) | Tools, TUI, CLI, sessions, RPC protocol, presets, skills, MCP integration |
+| **isotopes-core** | [`packages/isotopes-core/`](packages/isotopes-core/) | Agent loop engine, LLM providers, middleware, events, context management |
+| **isotopes** | [`packages/isotopes/`](packages/isotopes/) | Tools, TUI, CLI, sessions, RPC protocol, presets, skills, MCP integration |
 
-**isotope-core** is the foundation. It provides:
+**isotopes-core** is the foundation. It provides:
 - Agent loop (plan → act → observe → repeat)
 - LLM provider abstraction (OpenAI, Anthropic, proxy, router)
 - Composable middleware chain
@@ -20,7 +20,7 @@ Isotope is a monorepo with two packages:
 - `@auto_tool` decorator for zero-boilerplate tool definitions
 - File operation tracking
 
-**isotope-agents** is the framework built on isotope-core. It provides:
+**isotopes** is the framework built on isotopes-core. It provides:
 - Concrete tools (bash, read, write, edit, grep, glob, web search, web fetch)
 - Interactive TUI with Rich rendering
 - CLI with chat, run, rpc, and sessions commands
@@ -37,75 +37,71 @@ Isotope is a monorepo with two packages:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Run directly without installing (uses uvx)
-uvx --from 'isotope-agents[tui]' isotope chat
-uvx --from 'isotope-agents[tui]' isotope run "Explain this codebase"
+uvx --from 'isotopes[tui]' isotopes chat
+uvx --from 'isotopes[tui]' isotopes run "Explain this codebase"
 ```
 
 ### From Source (Development)
 
 ```bash
-git clone https://github.com/GhostComplex/isotope.git
-cd isotope
+git clone https://github.com/GhostComplex/isotopes.git
+cd isotopes
 
 # Sync with TUI support
-uv sync --package isotope-agents --extra tui
+uv sync --package isotopes --extra tui
 
 # Launch interactive TUI
-uv run isotope --model claude-opus-4.6 --preset coding chat
+uv run isotopes --model claude-opus-4.6 --preset coding chat
 
 # Run a one-shot prompt
-uv run isotope run "Explain this codebase"
+uv run isotopes run "Explain this codebase"
 
 # Start RPC server
-uv run isotope rpc
+uv run isotopes rpc
 ```
 
 #### Available Extras
 
 | Extra | Install | What it adds |
 |-------|---------|--------------|
-| `tui` | `uv sync --package isotope-agents --extra tui` | Interactive TUI (Rich + prompt-toolkit) |
-| `mcp` | `uv sync --package isotope-agents --extra mcp` | MCP server integration |
-| `all` | `uv sync --package isotope-agents --extra all` | Everything above |
+| `tui` | `uv sync --package isotopes --extra tui` | Interactive TUI (Rich + prompt-toolkit) |
+| `mcp` | `uv sync --package isotopes --extra mcp` | MCP server integration |
+| `all` | `uv sync --package isotopes --extra all` | Everything above |
 
 ## Development
 
 ```bash
 # Run all tests
-uv run pytest packages/isotope-core/tests/ -q
-uv run pytest packages/isotope-agents/tests/ -q
+uv run pytest packages/isotopes-core/tests/ -q
+uv run pytest packages/isotopes/tests/ -q
 
 # Lint
 uv run ruff check packages/
 
 # Type check
-uv run mypy packages/isotope-core/src/
+uv run mypy packages/isotopes-core/src/
 ```
 
 ### Publishing to PyPI
 
-Packages are published individually. `isotope-core` must be published before `isotope-agents` (since it depends on it).
+Packages are published via GitHub releases with trusted publishing:
 
 ```bash
-# Build and publish isotope-core
-uv build --package isotope-core
-uv publish dist/isotope_core-*.tar.gz dist/isotope_core-*.whl
+# Release isotopes-core
+gh release create core-v0.0.1 --title "isotopes-core v0.0.1"
 
-# Build and publish isotope-agents
-uv build --package isotope-agents
-uv publish dist/isotope_agents-*.tar.gz dist/isotope_agents-*.whl
+# Release isotopes
+gh release create v0.0.1 --title "isotopes v0.0.1"
 ```
-
-Set your PyPI token via `UV_PUBLISH_TOKEN` or pass `--token` to `uv publish`.
 
 ## Configuration
 
-Isotope reads configuration from `~/.isotope/config.yaml`. See the [isotope-agents README](packages/isotope-agents/README.md#configuration) for details.
+Isotope reads configuration from `~/.isotopes/config.yaml`. See the [isotopes README](packages/isotopes/README.md#configuration) for details.
 
 ## Documentation
 
-- [isotope-core API](packages/isotope-core/README.md) — engine, providers, middleware, tools
-- [isotope-agents guide](packages/isotope-agents/README.md) — CLI, tools, presets, RPC, sessions
+- [isotopes-core API](packages/isotopes-core/README.md) — engine, providers, middleware, tools
+- [isotopes guide](packages/isotopes/README.md) — CLI, tools, presets, RPC, sessions
 - [Project Requirements](docs/PRD.md) — design goals and product requirements
 - [Design Specs](docs/specs/) — milestone design documents
 
