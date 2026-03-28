@@ -446,7 +446,7 @@ class TestFetchAvailableModels:
             provider_type="anthropic",
             timeout=1.0,
         )
-        assert "claude-sonnet-4.6-20260301" in models
+        assert "claude-sonnet-4.6" in models
 
     @pytest.mark.asyncio
     async def test_returns_fallback_for_unknown_provider(self) -> None:

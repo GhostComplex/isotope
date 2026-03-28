@@ -31,7 +31,7 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
     "anthropic": {
         "base_url": "https://api.anthropic.com",
         "env_key": "ANTHROPIC_API_KEY",
-        "default_model": "claude-sonnet-4.6-20260301",
+        "default_model": "claude-sonnet-4.6",
     },
     "minimax": {
         "base_url": "https://api.minimaxi.com/v1",
@@ -46,7 +46,7 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
     "proxy": {
         "base_url": "http://localhost:4141/v1",
         "env_key": "",
-        "default_model": "claude-sonnet-4.6-20260301",
+        "default_model": "claude-sonnet-4.6",
     },
 }
 
@@ -277,9 +277,9 @@ def detect_provider_from_env() -> IsotopeConfig | None:
 # Fallback model lists when API fetch fails
 _FALLBACK_MODELS: dict[str, list[str]] = {
     "anthropic": [
-        "claude-sonnet-4.6-20260301",
-        "claude-opus-4.6-20260301",
-        "claude-haiku-4.5-20241022",
+        "claude-sonnet-4.6",
+        "claude-opus-4.6",
+        "claude-haiku-4.5",
     ],
     "openai": [
         "gpt-5.4",
