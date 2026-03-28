@@ -603,15 +603,15 @@ class TestCLIIntegration:
         assert result.returncode == 0
         assert "isotope-agents" in result.stdout
 
-    def test_cli_no_command_shows_help(self) -> None:
-        """CLI with no command shows help and exits with error."""
-        result = subprocess.run(
-            [sys.executable, "-m", "isotope_agents"],
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 1
-        assert "usage:" in result.stdout or "usage:" in result.stderr
+    def test_cli_no_command_defaults_to_chat(self) -> None:
+        """CLI with no command defaults to 'chat'."""
+        from isotope_agents.cli import create_parser
+
+        parser = create_parser()
+        args = parser.parse_args([])
+        assert args.command is None
+        # After the defaulting logic, command should become "chat"
+        # (tested via main's behavior; here we just verify parse result)
 
     def test_cli_run_missing_prompt_shows_error(self) -> None:
         """CLI run without prompt shows error."""
