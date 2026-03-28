@@ -4,9 +4,9 @@ requires-python = ">=3.11"
 
 [manifest]
 members = [
-    "isotope",
-    "isotope-agents",
-    "isotope-core",
+    "isotopes",
+    "isotopes-core",
+    "isotopes-workspace",
 ]
 
 [[package]]
@@ -494,17 +494,12 @@ wheels = [
 ]
 
 [[package]]
-name = "isotope"
-version = "0.1.0"
-source = { virtual = "." }
-
-[[package]]
-name = "isotope-agents"
-version = "0.1.5"
+name = "isotopes"
+version = "0.0.1"
 source = { editable = "packages/isotope-agents" }
 dependencies = [
     { name = "httpx" },
-    { name = "isotope-core", extra = ["openai"] },
+    { name = "isotopes-core", extra = ["openai"] },
     { name = "pyyaml" },
 ]
 
@@ -532,8 +527,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
-    { name = "isotope-agents", extras = ["tui", "mcp"], marker = "extra == 'all'" },
-    { name = "isotope-core", extras = ["openai"], editable = "packages/isotope-core" },
+    { name = "isotopes", extras = ["tui", "mcp"], marker = "extra == 'all'" },
+    { name = "isotopes-core", extras = ["openai"], editable = "packages/isotope-core" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
     { name = "prompt-toolkit", marker = "extra == 'tui'", specifier = ">=3.0" },
     { name = "pyyaml", specifier = ">=6.0" },
@@ -549,8 +544,8 @@ dev = [
 ]
 
 [[package]]
-name = "isotope-core"
-version = "0.1.5"
+name = "isotopes-core"
+version = "0.0.1"
 source = { editable = "packages/isotope-core" }
 dependencies = [
     { name = "pydantic" },
@@ -585,7 +580,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40" },
-    { name = "isotope-core", extras = ["openai", "anthropic", "tiktoken"], marker = "extra == 'all'", editable = "packages/isotope-core" },
+    { name = "isotopes-core", extras = ["openai", "anthropic", "tiktoken"], marker = "extra == 'all'", editable = "packages/isotope-core" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "tiktoken", marker = "extra == 'tiktoken'", specifier = ">=0.7" },
@@ -601,6 +596,11 @@ dev = [
     { name = "pytest-cov", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.8" },
 ]
+
+[[package]]
+name = "isotopes-workspace"
+version = "0.0.1"
+source = { virtual = "." }
 
 [[package]]
 name = "jiter"

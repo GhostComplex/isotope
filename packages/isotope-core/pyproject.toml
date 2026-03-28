@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "isotope-core"
-version = "0.1.5"
+name = "isotopes-core"
+version = "0.0.1"
 description = "Core primitives for building AI agent loops"
 readme = "README.md"
 license = "MIT"
@@ -33,7 +33,7 @@ dependencies = [
 openai = ["openai>=1.0"]
 anthropic = ["anthropic>=0.40"]
 tiktoken = ["tiktoken>=0.7"]
-all = ["isotope-core[openai,anthropic,tiktoken]"]
+all = ["isotopes-core[openai,anthropic,tiktoken]"]
 
 [dependency-groups]
 dev = [
@@ -46,9 +46,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/GhostComplex/isotope"
-Repository = "https://github.com/GhostComplex/isotope"
-Issues = "https://github.com/GhostComplex/isotope/issues"
+Homepage = "https://github.com/GhostComplex/isotopes"
+Repository = "https://github.com/GhostComplex/isotopes"
+Issues = "https://github.com/GhostComplex/isotopes/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/isotope_core"]

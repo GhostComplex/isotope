@@ -1,6 +1,6 @@
 [project]
-name = "isotope"
-version = "0.1.0"
+name = "isotopes-workspace"
+version = "0.0.1"
 description = "A pluggable Python agent framework"
 requires-python = ">=3.11"
 
@@ -8,4 +8,4 @@ requires-python = ">=3.11"
 members = ["packages/*"]
 
 [tool.uv.sources]
-isotope-core = { workspace = true }
+isotopes-core = { workspace = true }
