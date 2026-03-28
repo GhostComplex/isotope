@@ -1,5 +1,5 @@
 [project]
-name = "isotopes-workspace"
+name = "project-isotopes"
 version = "0.0.1"
 description = "A pluggable Python agent framework"
 requires-python = ">=3.11"
