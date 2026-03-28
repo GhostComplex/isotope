@@ -34,7 +34,7 @@ class TestCLI:
         """Parser can be created without errors."""
         parser = create_parser()
         assert parser is not None
-        assert parser.prog == "isotope"
+        assert parser.prog == "isotopes"
 
     def test_help_displays_correctly(self) -> None:
         """--help option works and exits with code 0."""
@@ -185,21 +185,21 @@ class TestCLI:
 
     def test_main_with_no_command_exits(self) -> None:
         """Main function exits when no command is provided."""
-        with patch("sys.argv", ["isotope"]):
+        with patch("sys.argv", ["isotopes"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 1
 
     def test_main_with_help_exits_zero(self) -> None:
         """Main function exits with 0 for help."""
-        with patch("sys.argv", ["isotope", "--help"]):
+        with patch("sys.argv", ["isotopes", "--help"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 0
 
     def test_main_with_version_exits_zero(self) -> None:
         """Main function exits with 0 for version."""
-        with patch("sys.argv", ["isotope", "--version"]):
+        with patch("sys.argv", ["isotopes", "--version"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 0
@@ -411,7 +411,7 @@ class TestMainDispatch:
     @patch("isotope_agents.cli.launch_tui")
     def test_main_chat_dispatches_to_launch_tui(self, mock_tui: MagicMock) -> None:
         """main() with 'chat' dispatches to launch_tui."""
-        with patch("sys.argv", ["isotope", "chat"]):
+        with patch("sys.argv", ["isotopes", "chat"]):
             try:
                 main()
             except SystemExit:
@@ -427,7 +427,7 @@ class TestMainDispatch:
         self, mock_ls: MagicMock
     ) -> None:
         """main() with 'sessions' dispatches to list_sessions."""
-        with patch("sys.argv", ["isotope", "sessions", "--limit", "3"]):
+        with patch("sys.argv", ["isotopes", "sessions", "--limit", "3"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 0
@@ -439,7 +439,7 @@ class TestMainDispatch:
         with patch(
             "sys.argv",
             [
-                "isotope",
+                "isotopes",
                 "--model",
                 "m1",
                 "--preset",
@@ -459,7 +459,7 @@ class TestMainDispatch:
         self, mock_run_one_shot: AsyncMock
     ) -> None:
         """main() with 'run' calls run_one_shot with correct args."""
-        with patch("sys.argv", ["isotope", "run", "hello"]):
+        with patch("sys.argv", ["isotopes", "run", "hello"]):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 0
@@ -590,7 +590,7 @@ class TestCLIIntegration:
             text=True,
         )
         assert result.returncode == 0
-        assert "isotope" in result.stdout
+        assert "isotopes" in result.stdout
         assert "Available commands" in result.stdout
 
     def test_cli_version_subprocess(self) -> None:
@@ -601,7 +601,7 @@ class TestCLIIntegration:
             text=True,
         )
         assert result.returncode == 0
-        assert "isotope-agents" in result.stdout
+        assert "isotopes" in result.stdout
 
     def test_cli_no_command_defaults_to_chat(self) -> None:
         """CLI with no command defaults to 'chat'."""

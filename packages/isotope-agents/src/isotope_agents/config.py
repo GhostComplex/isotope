@@ -1,6 +1,6 @@
-"""Configuration management for isotope-agents.
+"""Configuration management for isotopes.
 
-Loads settings from ~/.isotope/settings.json with env var expansion.
+Loads settings from ~/.isotopes/settings.json with env var expansion.
 Supports migration from legacy config.yaml files.
 Config priority: CLI flags > env vars > config file > defaults.
 """
@@ -81,14 +81,14 @@ class McpServerConfig:
 
 @dataclass
 class IsotopeConfig:
-    """Main configuration for isotope-agents."""
+    """Main configuration for isotopes."""
 
     model: str = "default"
     preset: str = "coding"
     system_prompt: str = "none"  # "none" | "default" | "custom"
     debug: bool = False
-    sessions_dir: str = "~/.isotope/sessions"
-    skills: list[str] = field(default_factory=lambda: ["~/.isotope/skills/"])
+    sessions_dir: str = "~/.isotopes/sessions"
+    skills: list[str] = field(default_factory=lambda: ["~/.isotopes/skills/"])
     tools: list[str] = field(default_factory=list)
     provider: ProviderConfig = field(default_factory=ProviderConfig)
     mcp_servers: list[McpServerConfig] = field(default_factory=list)
@@ -142,9 +142,9 @@ def _parse_config(raw: dict[str, Any]) -> IsotopeConfig:
         api_key=str(provider_data.get("api_key", "")),
     )
 
-    skills_raw = raw.get("skills", ["~/.isotope/skills/"])
+    skills_raw = raw.get("skills", ["~/.isotopes/skills/"])
     if not isinstance(skills_raw, list):
-        skills_raw = ["~/.isotope/skills/"]
+        skills_raw = ["~/.isotopes/skills/"]
     skills = [str(s) for s in skills_raw]
 
     tools_raw = raw.get("tools", [])
@@ -180,7 +180,7 @@ def _parse_config(raw: dict[str, Any]) -> IsotopeConfig:
         preset=str(raw.get("preset", "coding")),
         system_prompt=system_prompt,
         debug=bool(raw.get("debug", False)),
-        sessions_dir=str(raw.get("sessions_dir", "~/.isotope/sessions")),
+        sessions_dir=str(raw.get("sessions_dir", "~/.isotopes/sessions")),
         skills=skills,
         tools=tools,
         provider=provider,
@@ -464,8 +464,8 @@ def create_provider(model: str, config: IsotopeConfig) -> Any:
 # Public loader
 # ---------------------------------------------------------------------------
 
-_DEFAULT_JSON_PATH = Path.home() / ".isotope" / "settings.json"
-_DEFAULT_YAML_PATH = Path.home() / ".isotope" / "config.yaml"
+_DEFAULT_JSON_PATH = Path.home() / ".isotopes" / "settings.json"
+_DEFAULT_YAML_PATH = Path.home() / ".isotopes" / "config.yaml"
 
 
 def load_config(path: Path | None = None) -> IsotopeConfig:
@@ -513,9 +513,9 @@ def load_config(path: Path | None = None) -> IsotopeConfig:
                         api_key=str(provider_data.get("api_key", "")),
                     )
 
-                    skills_raw = raw.get("skills", ["~/.isotope/skills/"])
+                    skills_raw = raw.get("skills", ["~/.isotopes/skills/"])
                     if not isinstance(skills_raw, list):
-                        skills_raw = ["~/.isotope/skills/"]
+                        skills_raw = ["~/.isotopes/skills/"]
                     skills = [str(s) for s in skills_raw]
 
                     tools_raw = raw.get("tools", [])
@@ -545,7 +545,7 @@ def load_config(path: Path | None = None) -> IsotopeConfig:
                         preset=str(raw.get("preset", "coding")),
                         debug=bool(raw.get("debug", False)),
                         sessions_dir=str(
-                            raw.get("sessions_dir", "~/.isotope/sessions")
+                            raw.get("sessions_dir", "~/.isotopes/sessions")
                         ),
                         skills=skills,
                         tools=tools,
@@ -593,7 +593,7 @@ def save_config(config: IsotopeConfig, path: Path | None = None) -> None:
 
     Args:
         config: Config to save.
-        path: Path to write to. Defaults to ~/.isotope/settings.json.
+        path: Path to write to. Defaults to ~/.isotopes/settings.json.
     """
     if path is None:
         path = _DEFAULT_JSON_PATH
@@ -612,7 +612,7 @@ def save_config(config: IsotopeConfig, path: Path | None = None) -> None:
     # system_prompt mode is always saved
     data["system_prompt"] = config.system_prompt
 
-    if config.skills != ["~/.isotope/skills/"]:
+    if config.skills != ["~/.isotopes/skills/"]:
         data["skills"] = config.skills
     if config.tools:
         data["tools"] = config.tools
@@ -635,7 +635,7 @@ def save_config(config: IsotopeConfig, path: Path | None = None) -> None:
         f.write("\n")
 
 
-_DEFAULT_AGENT_MD_PATH = Path.home() / ".isotope" / "agent.md"
+_DEFAULT_AGENT_MD_PATH = Path.home() / ".isotopes" / "agent.md"
 
 
 def load_agent_md(path: Path | None = None) -> str:

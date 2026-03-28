@@ -912,7 +912,7 @@ class TUI:
             system_prompt=prompt_mode,
         )
         save_config(config)
-        _print("\n✓ Saved to ~/.isotope/settings.json\n", style="info")
+        _print("\n✓ Saved to ~/.isotopes/settings.json\n", style="info")
         return config
 
     async def run(self) -> None:
@@ -948,13 +948,13 @@ class TUI:
         # System prompt resolution based on mode:
         # - "none"    → not yet configured, ask user
         # - "default" → use preset system prompt, skip asking
-        # - "custom"  → load from ~/.isotope/agent.md
+        # - "custom"  → load from ~/.isotopes/agent.md
         sp_mode = self.config.system_prompt
         if sp_mode == "custom":
             agent_md = load_agent_md()
             if agent_md:
                 self.custom_system_prompt = agent_md
-                _print("System prompt: loaded from ~/.isotope/agent.md", style="dim")
+                _print("System prompt: loaded from ~/.isotopes/agent.md", style="dim")
             else:
                 _print(
                     f"Using {self.preset.name} preset (agent.md empty)",

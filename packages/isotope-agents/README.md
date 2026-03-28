@@ -38,20 +38,20 @@ uvx isotopes sessions
 uv sync --package isotopes --extra tui
 
 # Launch interactive TUI
-uv run isotope --model claude-opus-4.6 --preset coding chat
+uv run isotopes --model claude-opus-4.6 --preset coding chat
 
 # One-shot prompt
-uv run isotope run "Explain this project"
+uv run isotopes run "Explain this project"
 ```
 
 ## CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `isotope chat` | Launch interactive TUI (requires `isotopes[tui]`) |
-| `isotope run <prompt>` | Execute a one-shot prompt, stream response to stdout |
-| `isotope rpc` | Start JSONL-over-stdio RPC server for embedding |
-| `isotope sessions` | List saved sessions with message counts and previews |
+| `isotopes chat` | Launch interactive TUI (requires `isotopes[tui]`) |
+| `isotopes run <prompt>` | Execute a one-shot prompt, stream response to stdout |
+| `isotopes rpc` | Start JSONL-over-stdio RPC server for embedding |
+| `isotopes sessions` | List saved sessions with message counts and previews |
 
 ### Global Options
 
@@ -65,8 +65,8 @@ uv run isotope run "Explain this project"
 ### Resuming Sessions
 
 ```bash
-isotope chat --session abc12345
-isotope rpc --session abc12345
+isotopes chat --session abc12345
+isotopes rpc --session abc12345
 ```
 
 ## Presets
@@ -94,21 +94,21 @@ Presets define which tools and system prompt the agent uses.
 
 ## Configuration
 
-Isotope reads configuration from `~/.isotope/config.yaml`. Environment variables can be referenced with `${VAR}` syntax.
+Isotope reads configuration from `~/.isotopes/config.yaml`. Environment variables can be referenced with `${VAR}` syntax.
 
 ```yaml
-# ~/.isotope/config.yaml
+# ~/.isotopes/config.yaml
 model: claude-opus-4.6
 preset: coding
 debug: false
-sessions_dir: ~/.isotope/sessions
+sessions_dir: ~/.isotopes/sessions
 
 provider:
   base_url: http://localhost:4141
   api_key: ${ANTHROPIC_API_KEY}
 
 skills:
-  - ~/.isotope/skills/
+  - ~/.isotopes/skills/
 
 tools:
   - my_package.custom_tools
@@ -126,7 +126,7 @@ mcp:
 
 ## Skills
 
-Skills are reusable instruction sets defined as `SKILL.md` files with YAML frontmatter. Place them in `~/.isotope/skills/` (or any directory listed in `skills:` config).
+Skills are reusable instruction sets defined as `SKILL.md` files with YAML frontmatter. Place them in `~/.isotopes/skills/` (or any directory listed in `skills:` config).
 
 ```markdown
 ---
@@ -148,7 +148,7 @@ Skills are discovered lazily — frontmatter is scanned on startup, and the full
 
 Isotope supports [Model Context Protocol](https://modelcontextprotocol.io/) servers. MCP tools are automatically converted to isotope tools and made available to the agent.
 
-Configure MCP servers in `~/.isotope/config.yaml`:
+Configure MCP servers in `~/.isotopes/config.yaml`:
 
 ```yaml
 mcp:
@@ -167,7 +167,7 @@ Requires the `mcp` extra: `uv add 'isotopes[mcp]'` or `pip install 'isotopes[mcp
 
 ## RPC Protocol
 
-The `isotope rpc` command starts a JSONL-over-stdio server for embedding isotope in external applications (editors, IDEs, custom UIs).
+The `isotopes rpc` command starts a JSONL-over-stdio server for embedding isotope in external applications (editors, IDEs, custom UIs).
 
 ### Commands (stdin → agent)
 
@@ -200,26 +200,26 @@ All commands accept an optional `id` field for correlation.
 
 ```bash
 # Start the RPC server
-isotope rpc &
+isotopes rpc &
 
 # Send a prompt
-echo '{"type":"prompt","content":"What files are in this directory?"}' | isotope rpc
+echo '{"type":"prompt","content":"What files are in this directory?"}' | isotopes rpc
 
 # Abort
-echo '{"type":"abort"}' | isotope rpc
+echo '{"type":"abort"}' | isotopes rpc
 ```
 
 ## Session Management
 
-Sessions are persisted as JSONL files in `~/.isotope/sessions/` (configurable via `sessions_dir`). Each session gets an 8-character UUID.
+Sessions are persisted as JSONL files in `~/.isotopes/sessions/` (configurable via `sessions_dir`). Each session gets an 8-character UUID.
 
 ```bash
 # List recent sessions
-isotope sessions
-isotope sessions --limit 20
+isotopes sessions
+isotopes sessions --limit 20
 
 # Resume a session
-isotope chat --session abc12345
+isotopes chat --session abc12345
 ```
 
 Session entries include: `session_start`, `user_message`, `assistant_message`, `tool_result`, and `compaction` events. Compaction summaries are pinned so they survive context pruning on resume.
@@ -228,7 +228,7 @@ Session entries include: `session_start`, `user_message`, `assistant_message`, `
 
 | Extra | Dependency | Enables |
 |-------|-----------|---------|
-| `tui` | prompt-toolkit, rich | Interactive TUI (`isotope chat`) |
+| `tui` | prompt-toolkit, rich | Interactive TUI (`isotopes chat`) |
 | `mcp` | mcp | MCP server integration |
 | `all` | all of the above | Everything |
 

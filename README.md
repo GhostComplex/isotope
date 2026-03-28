@@ -37,8 +37,8 @@ Isotopes is a monorepo with two packages:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Run directly without installing (uses uvx)
-uvx --from 'isotopes[tui]' isotope chat
-uvx --from 'isotopes[tui]' isotope run "Explain this codebase"
+uvx --from 'isotopes[tui]' isotopes chat
+uvx --from 'isotopes[tui]' isotopes run "Explain this codebase"
 ```
 
 ### From Source (Development)
@@ -51,13 +51,13 @@ cd isotopes
 uv sync --package isotopes --extra tui
 
 # Launch interactive TUI
-uv run isotope --model claude-opus-4.6 --preset coding chat
+uv run isotopes --model claude-opus-4.6 --preset coding chat
 
 # Run a one-shot prompt
-uv run isotope run "Explain this codebase"
+uv run isotopes run "Explain this codebase"
 
 # Start RPC server
-uv run isotope rpc
+uv run isotopes rpc
 ```
 
 #### Available Extras
@@ -96,7 +96,7 @@ gh release create v0.0.1 --title "isotopes v0.0.1"
 
 ## Configuration
 
-Isotope reads configuration from `~/.isotope/config.yaml`. See the [isotopes README](packages/isotope-agents/README.md#configuration) for details.
+Isotope reads configuration from `~/.isotopes/config.yaml`. See the [isotopes README](packages/isotope-agents/README.md#configuration) for details.
 
 ## Documentation
 

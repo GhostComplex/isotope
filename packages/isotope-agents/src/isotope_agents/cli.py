@@ -33,14 +33,14 @@ DEFAULT_PRESET = "coding"
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
-        prog="isotope",
+        prog="isotopes",
         description="Isotope AI agent framework",
     )
 
     parser.add_argument(
         "--version",
         action="version",
-        version=f"isotope-agents {__version__}",
+        version=f"isotopes {__version__}",
     )
 
     # Global options

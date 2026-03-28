@@ -2,7 +2,7 @@
 
 This module provides session management functionality for storing and retrieving
 conversation data in a structured JSONL format. Sessions are stored in the user's
-~/.isotope/sessions/ directory.
+~/.isotopes/sessions/ directory.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ class SessionMeta:
 
 
 class SessionStore:
-    """Manages session persistence in ~/.isotope/sessions/.
+    """Manages session persistence in ~/.isotopes/sessions/.
 
     Provides functionality to create new sessions, append messages/events,
     load session history, and list available sessions.
@@ -66,9 +66,9 @@ class SessionStore:
         """Initialize session store.
 
         Args:
-            sessions_dir: Custom sessions directory. Defaults to ~/.isotope/sessions
+            sessions_dir: Custom sessions directory. Defaults to ~/.isotopes/sessions
         """
-        self.sessions_dir = sessions_dir or Path.home() / ".isotope" / "sessions"
+        self.sessions_dir = sessions_dir or Path.home() / ".isotopes" / "sessions"
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
 
     def create(self, model: str, preset: str) -> str:

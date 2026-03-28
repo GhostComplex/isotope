@@ -310,9 +310,9 @@ class TestSessionStore:
         assert len(sessions[0].last_message_preview) == 103  # 100 chars + "..."
 
     def test_default_sessions_directory(self) -> None:
-        """Test default sessions directory is ~/.isotope/sessions."""
+        """Test default sessions directory is ~/.isotopes/sessions."""
         store = SessionStore()
-        expected = Path.home() / ".isotope" / "sessions"
+        expected = Path.home() / ".isotopes" / "sessions"
         assert store.sessions_dir == expected
 
     def test_multiple_content_blocks_in_message(self, tmp_path: Path) -> None:
