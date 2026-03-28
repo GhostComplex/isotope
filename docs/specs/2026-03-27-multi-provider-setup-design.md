@@ -6,20 +6,20 @@
 
 ## Goal
 
-Replace the hardcoded `localhost:4141` proxy provider with multi-provider support (OpenAI, Anthropic, MiniMax, custom proxy) and an interactive first-run setup wizard. Config stored in `~/.isotope/settings.json`.
+Replace the hardcoded `localhost:4141` proxy provider with multi-provider support (OpenAI, Anthropic, MiniMax, custom proxy) and an interactive first-run setup wizard. Config stored in `~/.isotopes/settings.json`.
 
 ## Background
 
-Currently, `isotope-agents` always creates a `ProxyProvider` pointing at `http://localhost:4141/v1`. This requires running the `copilot-api` proxy locally. Users with direct API keys (Anthropic, OpenAI, MiniMax) can't use Isotope without the proxy.
+Currently, `isotopes` always creates a `ProxyProvider` pointing at `http://localhost:4141/v1`. This requires running the `copilot-api` proxy locally. Users with direct API keys (Anthropic, OpenAI, MiniMax) can't use Isotope without the proxy.
 
-The providers already exist in `isotope-core`:
+The providers already exist in `isotopes-core`:
 - `OpenAIProvider` — OpenAI Chat Completions API
 - `AnthropicProvider` — Anthropic Messages API
 - `ProxyProvider` — OpenAI-compatible proxy (extends OpenAIProvider)
 
 ## Design
 
-### 1. Config: `~/.isotope/settings.json`
+### 1. Config: `~/.isotopes/settings.json`
 
 Replace `config.yaml` with `settings.json`. No YAML dependency needed.
 
@@ -32,8 +32,8 @@ Replace `config.yaml` with `settings.json`. No YAML dependency needed.
   },
   "model": "claude-sonnet-4",
   "preset": "coding",
-  "sessions_dir": "~/.isotope/sessions",
-  "skills": ["~/.isotope/skills/"],
+  "sessions_dir": "~/.isotopes/sessions",
+  "skills": ["~/.isotopes/skills/"],
   "tools": [],
   "mcp": {
     "servers": []
@@ -57,7 +57,7 @@ Users can override `base_url` for any type. The `type` determines which provider
 
 ### 2. Provider Factory
 
-New function in `config.py` or a new `providers.py` in isotope-agents:
+New function in `config.py` or a new `providers.py` in isotopes:
 
 ```python
 def create_provider(model: str, config: IsotopeConfig) -> Provider:
@@ -75,10 +75,10 @@ def create_provider(model: str, config: IsotopeConfig) -> Provider:
 
 ### 3. First-Run Experience (FRE) — Inline Setup
 
-No separate `isotope setup` subcommand. The wizard runs inline on first launch:
+No separate `isotopes setup` subcommand. The wizard runs inline on first launch:
 
 ```
-$ isotope
+$ isotopes
 
 Welcome to Isotope! Let's configure your AI provider.
 
@@ -92,15 +92,15 @@ Welcome to Isotope! Let's configure your AI provider.
 ? API key: sk-ant-api03-...
 ? Default model [claude-sonnet-4]: claude-opus-4
 
-✓ Saved to ~/.isotope/settings.json
+✓ Saved to ~/.isotopes/settings.json
 
 ───────────────────────────────────────
- isotope v0.1.3 | claude-opus-4 | coding
+ isotopes v0.1.3 | claude-opus-4 | coding
 ───────────────────────────────────────
 You:
 ```
 
-**Trigger:** `~/.isotope/settings.json` doesn't exist AND no env vars auto-detected → run FRE before TUI starts.
+**Trigger:** `~/.isotopes/settings.json` doesn't exist AND no env vars auto-detected → run FRE before TUI starts.
 
 **Proxy path:** If user selects proxy, ask for base URL (default `http://localhost:4141`). API key defaults to `"not-needed"`.
 
@@ -129,7 +129,7 @@ The `/setup` command:
 
 ### 4. Env Var Auto-Detection
 
-If no `settings.json` exists and no `isotope setup` has run, but env vars are set, auto-detect:
+If no `settings.json` exists and no `isotopes setup` has run, but env vars are set, auto-detect:
 
 Priority order:
 1. `ANTHROPIC_API_KEY` → Anthropic provider
@@ -137,17 +137,17 @@ Priority order:
 3. `MINIMAX_API_KEY` → MiniMax provider
 4. Fall back to proxy at `localhost:4141`
 
-Print a one-line notice: `Using Anthropic (from ANTHROPIC_API_KEY). Run 'isotope setup' to configure.`
+Print a one-line notice: `Using Anthropic (from ANTHROPIC_API_KEY). Run 'isotopes setup' to configure.`
 
 ### 5. Migration
 
-- If `~/.isotope/config.yaml` exists but `settings.json` doesn't, auto-migrate on first load
+- If `~/.isotopes/config.yaml` exists but `settings.json` doesn't, auto-migrate on first load
 - Print: `Migrated config.yaml → settings.json`
 - Keep `config.yaml` as backup (don't delete)
 
 ### 6. CLI Changes
 
-- Remove `isotope setup` subcommand — FRE is inline on first launch
+- Remove `isotopes setup` subcommand — FRE is inline on first launch
 - `/setup` slash command in TUI — re-run wizard to change config
 - `--model` flag: still works as override
 - `--provider` flag: new, overrides provider type for this session
@@ -179,7 +179,7 @@ Print a one-line notice: `Using Anthropic (from ANTHROPIC_API_KEY). Run 'isotope
 
 ## Future: Agent Identity & Self-Evolving Prompts
 
-`~/.isotope/agent.md` currently stores a static custom system prompt. Future milestones could evolve this into a full agent identity system:
+`~/.isotopes/agent.md` currently stores a static custom system prompt. Future milestones could evolve this into a full agent identity system:
 
 - **System prompt creator** — an agent-assisted wizard that generates a tailored `agent.md` based on user preferences, use case, and persona
 - **Soul + Memory pattern** — extend `agent.md` with sections for personality (soul), accumulated learnings (memory), and user context

@@ -10,11 +10,11 @@
 
 ## Goal
 
-Embeddable agent via RPC protocol. Skill loading from directories. External tools via MCP. After M4: `isotope rpc` enables embedding in any UI, skills load from `~/.isotope/skills/`, and MCP tools integrate seamlessly.
+Embeddable agent via RPC protocol. Skill loading from directories. External tools via MCP. After M4: `isotopes rpc` enables embedding in any UI, skills load from `~/.isotopes/skills/`, and MCP tools integrate seamlessly.
 
 ## Success Criteria
 
-- `isotope rpc` starts JSONL stdin/stdout RPC mode
+- `isotopes rpc` starts JSONL stdin/stdout RPC mode
 - RPC supports all commands from PRD §9 (prompt, steer, follow_up, abort, get_state, set_model, compact, new_session)
 - RPC emits all event types (agent_start, text_delta, tool_call_start, tool_call_end, agent_end, state)
 - Skills loaded from configured directories via AgentSkills spec (frontmatter scan + lazy load)
@@ -29,7 +29,7 @@ Embeddable agent via RPC protocol. Skill loading from directories. External tool
 
 ### M4.1: RPC protocol types
 
-**File:** `packages/isotope-agents/src/isotope_agents/rpc/protocol.py`
+**File:** `packages/isotopes/src/isotopes/rpc/protocol.py`
 
 **~150 LOC, S**
 
@@ -115,7 +115,7 @@ Add a command parser:
 def parse_command(line: str) -> RpcCommand: ...
 ```
 
-**Tests:** `packages/isotope-agents/tests/test_rpc_protocol.py`
+**Tests:** `packages/isotopes/tests/test_rpc_protocol.py`
 
 **Commit after done.**
 
@@ -123,7 +123,7 @@ def parse_command(line: str) -> RpcCommand: ...
 
 ### M4.2: RPC server
 
-**File:** `packages/isotope-agents/src/isotope_agents/rpc/server.py`
+**File:** `packages/isotopes/src/isotopes/rpc/server.py`
 
 **~250 LOC, L**
 
@@ -180,28 +180,28 @@ Key mapping from `AgentEvent` → `RpcEvent`:
 - `AgentStartEvent` → `AgentStartRpcEvent`
 - `AgentEndEvent` → `AgentEndRpcEvent` (with usage)
 
-**Tests:** `packages/isotope-agents/tests/test_rpc_server.py` — test with mock streams.
+**Tests:** `packages/isotopes/tests/test_rpc_server.py` — test with mock streams.
 
 **Commit after done.**
 
 ---
 
-### M4.3: `isotope rpc` CLI command
+### M4.3: `isotopes rpc` CLI command
 
-**File:** `packages/isotope-agents/src/isotope_agents/cli.py` (add `rpc` subcommand)
+**File:** `packages/isotopes/src/isotopes/cli.py` (add `rpc` subcommand)
 
 **~30 LOC, S**
 
 ```bash
-isotope rpc
-isotope rpc --preset coding
-isotope rpc --model claude-sonnet-4-20250514
-isotope rpc --session abc123  # resume session
+isotopes rpc
+isotopes rpc --preset coding
+isotopes rpc --model claude-sonnet-4-20250514
+isotopes rpc --session abc123  # resume session
 ```
 
 Starts the RPC server. Reads from stdin, writes to stdout. Stderr for logs/errors.
 
-**Tests:** Update `packages/isotope-agents/tests/test_cli.py`.
+**Tests:** Update `packages/isotopes/tests/test_cli.py`.
 
 **Commit after done.**
 
@@ -209,7 +209,7 @@ Starts the RPC server. Reads from stdin, writes to stdout. Stderr for logs/error
 
 ### M4.4: Skill loader
 
-**File:** `packages/isotope-agents/src/isotope_agents/skills.py`
+**File:** `packages/isotopes/src/isotopes/skills.py`
 
 **~150 LOC, M**
 
@@ -241,16 +241,16 @@ class SkillLoader:
 
 Frontmatter parsing: read YAML between `---` delimiters at top of SKILL.md. Extract `name` and `description`. Don't load the full content until `load()` is called.
 
-Skill directories are configured in `~/.isotope/config.yaml`:
+Skill directories are configured in `~/.isotopes/config.yaml`:
 ```yaml
 skills:
-  - ~/.isotope/skills/
+  - ~/.isotopes/skills/
   - /path/to/project/skills/
 ```
 
 Add `skills` field to `IsotopeConfig`.
 
-**Tests:** `packages/isotope-agents/tests/test_skills.py`
+**Tests:** `packages/isotopes/tests/test_skills.py`
 
 **Commit after done.**
 
@@ -258,7 +258,7 @@ Add `skills` field to `IsotopeConfig`.
 
 ### M4.5: MCP client integration
 
-**File:** `packages/isotope-agents/src/isotope_agents/mcp_client.py`
+**File:** `packages/isotopes/src/isotopes/mcp_client.py`
 
 **~120 LOC, M**
 
@@ -266,10 +266,10 @@ Load tools from MCP servers and register them with the agent:
 
 ```python
 class McpToolLoader:
-    """Loads tools from MCP servers and converts them to isotope Tool objects."""
+    """Loads tools from MCP servers and converts them to isotopes Tool objects."""
 
     async def load_from_server(self, server_config: dict) -> list[Tool]:
-        """Connect to an MCP server, list its tools, and wrap them as isotope Tools.
+        """Connect to an MCP server, list its tools, and wrap them as isotopes Tools.
 
         server_config example:
             {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]}
@@ -277,10 +277,10 @@ class McpToolLoader:
         """
 
     def _mcp_tool_to_isotope_tool(self, mcp_tool) -> Tool:
-        """Convert an MCP tool definition to an isotope-core Tool."""
+        """Convert an MCP tool definition to an isotopes-core Tool."""
 ```
 
-Configuration in `~/.isotope/config.yaml`:
+Configuration in `~/.isotopes/config.yaml`:
 ```yaml
 mcp:
   servers:
@@ -294,7 +294,7 @@ mcp:
 
 Use the `mcp` Python package for the client connection. Add as optional dep `[mcp]`.
 
-**Tests:** `packages/isotope-agents/tests/test_mcp_client.py` — test with mocks (no real MCP servers).
+**Tests:** `packages/isotopes/tests/test_mcp_client.py` — test with mocks (no real MCP servers).
 
 **Commit after done.**
 
@@ -302,15 +302,15 @@ Use the `mcp` Python package for the client connection. Add as optional dep `[mc
 
 ### M4.6: Tools config — register by module path
 
-**File:** `packages/isotope-agents/src/isotope_agents/config.py` (extend)
-**File:** `packages/isotope-agents/src/isotope_agents/agent.py` (wire loading)
+**File:** `packages/isotopes/src/isotopes/config.py` (extend)
+**File:** `packages/isotopes/src/isotopes/agent.py` (wire loading)
 
 **~60 LOC, S**
 
 Allow registering additional tools via config:
 
 ```yaml
-# ~/.isotope/config.yaml
+# ~/.isotopes/config.yaml
 tools:
   - mypackage.tools.custom_tool
   - mypackage.tools.another_tool
@@ -331,7 +331,7 @@ def load_tools_from_config(tool_paths: list[str]) -> list[Tool]:
     return tools
 ```
 
-**Tests:** `packages/isotope-agents/tests/test_config.py` — extend with tool loading tests.
+**Tests:** `packages/isotopes/tests/test_config.py` — extend with tool loading tests.
 
 **Commit after done.**
 
@@ -341,8 +341,8 @@ def load_tools_from_config(tool_paths: list[str]) -> list[Tool]:
 
 **Files:**
 - `README.md` (root)
-- `packages/isotope-core/README.md`
-- `packages/isotope-agents/README.md`
+- `packages/isotopes-core/README.md`
+- `packages/isotopes/README.md`
 
 **~300 LOC total, M**
 
@@ -352,13 +352,13 @@ Root README:
 - Package descriptions
 - Links to package READMEs
 
-isotope-core README:
+isotopes-core README:
 - What it provides (Agent, EventStream, @tool, providers, middleware)
 - API overview with examples
 - Provider setup
 
-isotope-agents README:
-- Quick start: `pip install isotope-agents[all]` → `isotope chat`
+isotopes README:
+- Quick start: `pip install isotopes[all]` → `isotopes chat`
 - CLI usage (chat, run, rpc, sessions)
 - Presets
 - Tools list
@@ -373,11 +373,11 @@ isotope-agents README:
 
 ### M4.8: Clean up + verify
 
-- Verify all isotope-core tests pass
-- Verify all isotope-agents tests pass
+- Verify all isotopes-core tests pass
+- Verify all isotopes tests pass
 - `ruff check` + lint clean
 - Update `pyproject.toml` files with any missing dependencies
-- Verify `isotope rpc` works end-to-end (manual smoke test)
+- Verify `isotopes rpc` works end-to-end (manual smoke test)
 - Push, open PR to main
 
 **Commit after done.**
@@ -389,6 +389,6 @@ isotope-agents README:
 - RPC types use Pydantic for serialization consistency with the rest of the codebase
 - RPC server uses asyncio for concurrent command handling (prompts + steering/abort can arrive simultaneously)
 - Skill loader is deliberately simple — keyword matching, not semantic search. The agent can use skill descriptions in its system prompt to do smarter matching.
-- MCP is optional (`[mcp]` extras) — isotope-agents works fine without it
+- MCP is optional (`[mcp]` extras) — isotopes works fine without it
 - `tools:` config is the escape hatch — any Python tool can be loaded without MCP or skills
 - Documentation is part of the milestone because "ship" means it's usable by others

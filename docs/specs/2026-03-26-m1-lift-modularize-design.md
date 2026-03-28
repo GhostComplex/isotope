@@ -12,32 +12,32 @@
 
 Working CLI agent with modular tools, preset system, and `@tool` decorator. Ship to PyPI.
 
-After M1: `pip install isotope-agents[tui]` → `isotope chat --preset coding` works.
+After M1: `pip install isotopes[tui]` → `isotopes chat --preset coding` works.
 
 ## Success Criteria
 
-- `isotope chat` launches interactive TUI with all existing features
-- `isotope run "prompt"` works in print mode
+- `isotopes chat` launches interactive TUI with all existing features
+- `isotopes run "prompt"` works in print mode
 - `--preset coding|assistant|minimal` selects tool sets + system prompts
 - All 6 tools work (bash, read, write, edit, grep, glob) with truncation
 - `@tool` decorator generates JSON schema from type hints
-- TUI code removed from `packages/isotope-core/tui/`
-- All existing isotope-core tests still pass
-- New tests for isotope-agents tools, presets, CLI
+- TUI code removed from `packages/isotopes-core/tui/`
+- All existing isotopes-core tests still pass
+- New tests for isotopes tools, presets, CLI
 
 ---
 
 ## Subtasks
 
-### M1.1: `@tool` decorator in isotope-core
+### M1.1: `@tool` decorator in isotopes-core
 
-**File:** `packages/isotope-core/src/isotope_core/tools.py`
+**File:** `packages/isotopes-core/src/isotopes_core/tools.py`
 **~100 LOC, S**
 
 Add a `@tool` decorator that auto-generates a `Tool` from a function:
 
 ```python
-from isotope_core import tool
+from isotopes_core import tool
 
 @tool
 async def grep(pattern: str, path: str = ".", include: str | None = None) -> str:
@@ -62,7 +62,7 @@ The decorator:
 
 The result is a standard `Tool` object — same as manually constructed.
 
-**Tests:** Add to `packages/isotope-core/tests/test_tools.py`
+**Tests:** Add to `packages/isotopes-core/tests/test_tools.py`
 
 **Commit after done.**
 
@@ -70,7 +70,7 @@ The result is a standard `Tool` object — same as manually constructed.
 
 ### M1.2: Tool output truncation utility
 
-**File:** `packages/isotope-agents/src/isotope_agents/tools/__init__.py`
+**File:** `packages/isotopes/src/isotopes/tools/__init__.py`
 **~50 LOC, S**
 
 ```python
@@ -84,7 +84,7 @@ def truncate_output(text: str, max_chars: int = 30_000, strategy: str = "head_ta
     """
 ```
 
-**Tests:** `packages/isotope-agents/tests/test_truncation.py`
+**Tests:** `packages/isotopes/tests/test_truncation.py`
 
 **Commit after done.**
 
@@ -93,10 +93,10 @@ def truncate_output(text: str, max_chars: int = 30_000, strategy: str = "head_ta
 ### M1.3: Extract tools from TUI into separate modules
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/tools/bash.py`
-- `packages/isotope-agents/src/isotope_agents/tools/read.py`
-- `packages/isotope-agents/src/isotope_agents/tools/write.py`
-- `packages/isotope-agents/src/isotope_agents/tools/edit.py`
+- `packages/isotopes/src/isotopes/tools/bash.py`
+- `packages/isotopes/src/isotopes/tools/read.py`
+- `packages/isotopes/src/isotopes/tools/write.py`
+- `packages/isotopes/src/isotopes/tools/edit.py`
 
 **~300 LOC total (mostly lift from tui/main.py `_make_tools()`), M**
 
@@ -107,7 +107,7 @@ Key changes from the TUI originals:
 - Consistent timeout handling for bash (configurable, default 30s, cap 120s)
 - Better error messages
 
-**Tests:** `packages/isotope-agents/tests/test_tools_bash.py`, etc.
+**Tests:** `packages/isotopes/tests/test_tools_bash.py`, etc.
 
 **Commit after done.**
 
@@ -116,8 +116,8 @@ Key changes from the TUI originals:
 ### M1.4: New tools — GrepTool + GlobTool
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/tools/grep.py`
-- `packages/isotope-agents/src/isotope_agents/tools/glob.py`
+- `packages/isotopes/src/isotopes/tools/grep.py`
+- `packages/isotopes/src/isotopes/tools/glob.py`
 
 **~150 LOC total, M**
 
@@ -132,7 +132,7 @@ Key changes from the TUI originals:
 - Lists matching files with relative paths
 - Output truncated
 
-**Tests:** `packages/isotope-agents/tests/test_tools_grep.py`, `test_tools_glob.py`
+**Tests:** `packages/isotopes/tests/test_tools_grep.py`, `test_tools_glob.py`
 
 **Commit after done.**
 
@@ -140,7 +140,7 @@ Key changes from the TUI originals:
 
 ### M1.5: Preset system
 
-**File:** `packages/isotope-agents/src/isotope_agents/presets.py`
+**File:** `packages/isotopes/src/isotopes/presets.py`
 **~100 LOC, S**
 
 ```python
@@ -173,18 +173,18 @@ def get_preset(name: str) -> Preset: ...
 def list_presets() -> list[str]: ...
 ```
 
-**Tests:** `packages/isotope-agents/tests/test_presets.py`
+**Tests:** `packages/isotopes/tests/test_presets.py`
 
 **Commit after done.**
 
 ---
 
-### M1.6: Agent class wrapping isotope-core
+### M1.6: Agent class wrapping isotopes-core
 
-**File:** `packages/isotope-agents/src/isotope_agents/agent.py`
+**File:** `packages/isotopes/src/isotopes/agent.py`
 **~150 LOC, M**
 
-Thin wrapper around `isotope_core.Agent` that:
+Thin wrapper around `isotopes_core.Agent` that:
 - Takes a preset name or `Preset` object
 - Registers preset tools with the core agent
 - Sets system prompt from preset
@@ -196,19 +196,19 @@ class IsotopeAgent:
         ...
 ```
 
-**Tests:** `packages/isotope-agents/tests/test_agent.py`
+**Tests:** `packages/isotopes/tests/test_agent.py`
 
 **Commit after done.**
 
 ---
 
-### M1.7: Lift TUI into isotope-agents
+### M1.7: Lift TUI into isotopes
 
 **Files:**
-- `packages/isotope-agents/src/isotope_agents/tui/app.py` — main loop + orchestration
-- `packages/isotope-agents/src/isotope_agents/tui/input.py` — prompt-toolkit input, steering
-- `packages/isotope-agents/src/isotope_agents/tui/output.py` — rendering, token display
-- `packages/isotope-agents/src/isotope_agents/tui/commands.py` — slash command handlers
+- `packages/isotopes/src/isotopes/tui/app.py` — main loop + orchestration
+- `packages/isotopes/src/isotopes/tui/input.py` — prompt-toolkit input, steering
+- `packages/isotopes/src/isotopes/tui/output.py` — rendering, token display
+- `packages/isotopes/src/isotopes/tui/commands.py` — slash command handlers
 
 **~1100 LOC (split from tui/main.py), L**
 
@@ -219,9 +219,9 @@ Split the existing `tui/main.py` (1116 lines) into 4 focused modules:
 3. **output.py** (~250 LOC): `OutputHandler` — event consumption, tool call display, token usage, StreamBuffer
 4. **commands.py** (~200 LOC): `CommandHandler` — slash command parsing + handlers (/tools, /model, /system, /clear, /history, /debug, /help, /quit)
 
-The TUI now uses `IsotopeAgent` from M1.6 instead of directly using `isotope_core.Agent`. Tools come from presets (M1.5), not inline `_make_tools()`.
+The TUI now uses `IsotopeAgent` from M1.6 instead of directly using `isotopes_core.Agent`. Tools come from presets (M1.5), not inline `_make_tools()`.
 
-**After this subtask:** Remove `packages/isotope-core/tui/` directory and `test_tui_main.py`.
+**After this subtask:** Remove `packages/isotopes-core/tui/` directory and `test_tui_main.py`.
 
 **Tests:** Adapt existing `test_tui_main.py` to new structure.
 
@@ -231,26 +231,26 @@ The TUI now uses `IsotopeAgent` from M1.6 instead of directly using `isotope_cor
 
 ### M1.8: CLI entry point
 
-**File:** `packages/isotope-agents/src/isotope_agents/cli.py`
+**File:** `packages/isotopes/src/isotopes/cli.py`
 **~100 LOC, S**
 
 ```bash
 # Interactive TUI
-isotope chat
-isotope chat --preset coding
-isotope chat --model claude-sonnet-4-20250514
+isotopes chat
+isotopes chat --preset coding
+isotopes chat --model claude-sonnet-4-20250514
 
 # One-shot (print mode, non-interactive)
-isotope run "fix the bug in auth.py"
-isotope run --preset assistant "summarize this document"
-isotope run --print "explain this code"
+isotopes run "fix the bug in auth.py"
+isotopes run --preset assistant "summarize this document"
+isotopes run --print "explain this code"
 ```
 
 Uses argparse or click. Subcommands: `chat`, `run`.
 
 Common flags: `--preset`, `--model`, `--system` (system prompt override), `--debug`.
 
-**Tests:** `packages/isotope-agents/tests/test_cli.py` (argument parsing only, no live agent)
+**Tests:** `packages/isotopes/tests/test_cli.py` (argument parsing only, no live agent)
 
 **Commit after done.**
 
@@ -258,13 +258,13 @@ Common flags: `--preset`, `--model`, `--system` (system prompt override), `--deb
 
 ### M1.9: Clean up + verify
 
-- Remove `packages/isotope-core/tui/` directory
-- Remove `packages/isotope-core/tests/test_tui_main.py`
-- Verify all isotope-core tests still pass (437 - tui test)
-- Verify all new isotope-agents tests pass
+- Remove `packages/isotopes-core/tui/` directory
+- Remove `packages/isotopes-core/tests/test_tui_main.py`
+- Verify all isotopes-core tests still pass (437 - tui test)
+- Verify all new isotopes tests pass
 - `ruff check` + `mypy` clean for both packages
-- Update `packages/isotope-agents/pyproject.toml` with any missing dependencies
-- Update `packages/isotope-agents/README.md`
+- Update `packages/isotopes/pyproject.toml` with any missing dependencies
+- Update `packages/isotopes/README.md`
 
 **Commit, push, open PR to main.**
 
@@ -272,8 +272,8 @@ Common flags: `--preset`, `--model`, `--system` (system prompt override), `--deb
 
 ## Notes
 
-- The `@tool` decorator goes in isotope-core because it's schema generation — no tool implementations
-- Tool implementations go in isotope-agents — that's the opinionated layer
-- The TUI split doesn't need to be architecturally perfect — we can refactor later. The goal is to get it out of isotope-core and working in isotope-agents
+- The `@tool` decorator goes in isotopes-core because it's schema generation — no tool implementations
+- Tool implementations go in isotopes — that's the opinionated layer
+- The TUI split doesn't need to be architecturally perfect — we can refactor later. The goal is to get it out of isotopes-core and working in isotopes
 - System prompts for presets should be thoughtful but not overthought — they'll be iterated
 - `get_current_time` tool from the original TUI is dropped — it's trivial enough for the model to handle via bash

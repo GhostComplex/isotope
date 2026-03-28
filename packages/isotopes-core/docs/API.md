@@ -1,6 +1,6 @@
 # API Reference
 
-Complete API reference for `isotope-core`.
+Complete API reference for `isotopes-core`.
 
 ## Table of Contents
 
@@ -34,7 +34,7 @@ Complete API reference for `isotope-core`.
 Stateful agent wrapping the agent loop. Manages messages, tools, subscriptions, steering, and follow-up queues.
 
 ```python
-from isotope_core import Agent
+from isotopes_core import Agent
 ```
 
 #### Constructor
@@ -126,7 +126,7 @@ class AgentState:
 Core execution engine. Runs the turn-based agent loop.
 
 ```python
-from isotope_core import agent_loop, AgentLoopConfig
+from isotopes_core import agent_loop, AgentLoopConfig
 ```
 
 **Parameters:**
@@ -203,7 +203,7 @@ TransformContextHook = Callable[
 ### Content Types
 
 ```python
-from isotope_core.types import TextContent, ImageContent, ThinkingContent, ToolCallContent
+from isotopes_core.types import TextContent, ImageContent, ThinkingContent, ToolCallContent
 
 class TextContent(BaseModel):
     type: Literal["text"] = "text"
@@ -232,7 +232,7 @@ Content = TextContent | ImageContent | ThinkingContent | ToolCallContent
 ### Message Types
 
 ```python
-from isotope_core.types import UserMessage, AssistantMessage, ToolResultMessage
+from isotopes_core.types import UserMessage, AssistantMessage, ToolResultMessage
 
 class UserMessage(BaseModel):
     role: Literal["user"] = "user"
@@ -278,7 +278,7 @@ class Context(BaseModel):
 ### Events
 
 ```python
-from isotope_core.types import (
+from isotopes_core.types import (
     AgentStartEvent, AgentEndEvent,
     TurnStartEvent, TurnEndEvent,
     MessageStartEvent, MessageUpdateEvent, MessageEndEvent,
@@ -331,7 +331,7 @@ class AggregatedUsage(BaseModel):
 ### `class Tool`
 
 ```python
-from isotope_core.tools import Tool, ToolResult
+from isotopes_core.tools import Tool, ToolResult
 
 tool = Tool(
     name="read_file",
@@ -364,7 +364,7 @@ class ToolResult:
 ### `@tool` Decorator
 
 ```python
-from isotope_core.tools import tool
+from isotopes_core.tools import tool
 
 @tool(name="get_weather", description="Get weather", parameters={...})
 async def get_weather(tool_call_id, params, signal, on_update):
@@ -385,7 +385,7 @@ async def get_weather(tool_call_id, params, signal, on_update):
 ### Provider Protocol
 
 ```python
-from isotope_core.providers.base import Provider
+from isotopes_core.providers.base import Provider
 
 class Provider(Protocol):
     @property
@@ -405,7 +405,7 @@ class Provider(Protocol):
 ### Stream Events
 
 ```python
-from isotope_core.providers.base import (
+from isotopes_core.providers.base import (
     StreamStartEvent,      # type="start"
     StreamTextDeltaEvent,  # type="text_delta"
     StreamTextEndEvent,    # type="text_end"
@@ -422,7 +422,7 @@ from isotope_core.providers.base import (
 ### OpenAIProvider
 
 ```python
-from isotope_core.providers.openai import OpenAIProvider
+from isotopes_core.providers.openai import OpenAIProvider
 
 provider = OpenAIProvider(
     model="gpt-4o",
@@ -436,7 +436,7 @@ provider = OpenAIProvider(
 ### AnthropicProvider
 
 ```python
-from isotope_core.providers.anthropic import AnthropicProvider, ThinkingConfig
+from isotopes_core.providers.anthropic import AnthropicProvider, ThinkingConfig
 
 provider = AnthropicProvider(
     model="claude-sonnet-4-20250514",
@@ -460,7 +460,7 @@ class ThinkingConfig:
 ### ProxyProvider
 
 ```python
-from isotope_core.providers.proxy import ProxyProvider
+from isotopes_core.providers.proxy import ProxyProvider
 
 provider = ProxyProvider(
     model="llama-3.1-70b",
@@ -475,7 +475,7 @@ provider = ProxyProvider(
 ### RouterProvider
 
 ```python
-from isotope_core import RouterProvider, CircuitState
+from isotopes_core import RouterProvider, CircuitState
 
 router = RouterProvider(
     primary=openai_provider,
@@ -502,7 +502,7 @@ router = RouterProvider(
 ### Token Counting
 
 ```python
-from isotope_core import count_tokens, count_message_tokens, get_context_window
+from isotopes_core import count_tokens, count_message_tokens, get_context_window
 
 tokens = count_tokens(messages, model="gpt-4o")
 msg_tokens = count_message_tokens(message, model="gpt-4o")
@@ -512,7 +512,7 @@ window = get_context_window("gpt-4o")  # 128_000
 ### Context Usage
 
 ```python
-from isotope_core import estimate_context_usage, ContextUsage
+from isotopes_core import estimate_context_usage, ContextUsage
 
 usage = estimate_context_usage(context, model="gpt-4o")
 # ContextUsage(total_tokens, system_tokens, message_tokens, tool_tokens,
@@ -522,7 +522,7 @@ usage = estimate_context_usage(context, model="gpt-4o")
 ### Message Pinning
 
 ```python
-from isotope_core import pin_message, unpin_message
+from isotopes_core import pin_message, unpin_message
 
 messages = pin_message(messages, index=0)    # Returns new list
 messages = unpin_message(messages, index=0)
@@ -550,7 +550,7 @@ class PruneResult:
 Drops oldest non-protected messages until within budget. Respects pinned messages.
 
 ```python
-from isotope_core import SlidingWindowStrategy
+from isotopes_core import SlidingWindowStrategy
 
 strategy = SlidingWindowStrategy(keep_recent=10, keep_first_n=1)
 result = await strategy.prune(messages, target_tokens=50_000)
@@ -561,7 +561,7 @@ result = await strategy.prune(messages, target_tokens=50_000)
 Summarizes older messages via an LLM call. Keeps recent N messages verbatim.
 
 ```python
-from isotope_core import SummarizationStrategy
+from isotopes_core import SummarizationStrategy
 
 strategy = SummarizationStrategy(
     provider=my_provider,
@@ -576,7 +576,7 @@ result = await strategy.prune(messages, target_tokens=50_000)
 Keeps only recent + pinned messages.
 
 ```python
-from isotope_core import SelectivePruningStrategy
+from isotopes_core import SelectivePruningStrategy
 
 strategy = SelectivePruningStrategy(keep_recent=10)
 result = await strategy.prune(messages, target_tokens=50_000)
@@ -585,7 +585,7 @@ result = await strategy.prune(messages, target_tokens=50_000)
 ### Transform Context Hook Factories
 
 ```python
-from isotope_core import create_sliding_window_transform, create_summarization_transform
+from isotopes_core import create_sliding_window_transform, create_summarization_transform
 
 transform = create_sliding_window_transform(
     max_tokens=50_000, keep_recent=10, model="gpt-4o", keep_first_n=1
@@ -602,7 +602,7 @@ agent = Agent(provider=..., transform_context=transform)
 ### Model Context Windows
 
 ```python
-from isotope_core import MODEL_CONTEXT_WINDOWS
+from isotopes_core import MODEL_CONTEXT_WINDOWS
 
 # Built-in mappings:
 # "gpt-4o": 128_000, "gpt-4": 8_192, "o3": 200_000,
@@ -616,7 +616,7 @@ from isotope_core import MODEL_CONTEXT_WINDOWS
 ### Protocol
 
 ```python
-from isotope_core import Middleware, MiddlewareContext
+from isotopes_core import Middleware, MiddlewareContext
 
 class Middleware(Protocol):
     async def on_event(
@@ -667,7 +667,7 @@ EventFilterMiddleware(exclude={"message_update", "tool_update"})
 ### Lifecycle Hooks
 
 ```python
-from isotope_core import LifecycleHooks
+from isotopes_core import LifecycleHooks
 
 hooks = LifecycleHooks(
     on_agent_start=async_fn(),        # Callable[[], Awaitable[None]]
@@ -687,7 +687,7 @@ hooks = LifecycleHooks(
 Generic async event stream supporting pull and push consumption.
 
 ```python
-from isotope_core import EventStream
+from isotopes_core import EventStream
 
 stream = EventStream(
     is_complete=lambda e: e.type == "done",
@@ -714,7 +714,7 @@ Specialized `EventStream[AgentEvent, list[Message]]` for agent events.
 ### `RetryConfig`
 
 ```python
-from isotope_core import RetryConfig
+from isotopes_core import RetryConfig
 
 config = RetryConfig(
     max_retries=3,
@@ -731,7 +731,7 @@ config = RetryConfig(
 Decorator for async functions with exponential backoff retry.
 
 ```python
-from isotope_core import retry_with_backoff
+from isotopes_core import retry_with_backoff
 
 @retry_with_backoff(RetryConfig(max_retries=3))
 async def call_api():
@@ -741,7 +741,7 @@ async def call_api():
 ### Utility Functions
 
 ```python
-from isotope_core.providers.utils import (
+from isotopes_core.providers.utils import (
     is_retryable_error,      # Check if error should be retried
     get_retry_after,         # Extract Retry-After from error
     map_error_to_stop_reason,  # Map exception to StopReason

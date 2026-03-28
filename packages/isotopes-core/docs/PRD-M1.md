@@ -1,4 +1,4 @@
-# isotope-core — Milestone 1: Core Types & Agent Loop
+# isotopes-core — Milestone 1: Core Types & Agent Loop
 
 ## Objective
 
@@ -13,7 +13,7 @@ Study these repos (cloned at `/tmp/`) for design patterns:
 
 ## Deliverables
 
-### 1. Core Types (`src/isotope_core/types.py`)
+### 1. Core Types (`src/isotopes_core/types.py`)
 
 Define all foundational types using Pydantic models and Python Protocols:
 
@@ -40,7 +40,7 @@ Define all foundational types using Pydantic models and Python Protocols:
 
 **Stop reasons:** `end_turn`, `tool_use`, `max_tokens`, `error`, `aborted`
 
-### 2. Provider Protocol (`src/isotope_core/providers/base.py`)
+### 2. Provider Protocol (`src/isotopes_core/providers/base.py`)
 
 Define the provider interface:
 
@@ -61,7 +61,7 @@ class Provider(Protocol):
         ...
 ```
 
-### 3. Tool Framework (`src/isotope_core/tools.py`)
+### 3. Tool Framework (`src/isotopes_core/tools.py`)
 
 ```python
 @dataclass
@@ -76,14 +76,14 @@ class Tool:
     execute: Callable  # async (tool_call_id, params, signal?) -> ToolResult
 ```
 
-### 4. Event Stream (`src/isotope_core/events.py`)
+### 4. Event Stream (`src/isotopes_core/events.py`)
 
 Async event stream that supports:
 - `async for event in stream:` iteration
 - `subscribe(callback)` for push-based consumption
 - Proper cleanup on abort
 
-### 5. Agent Loop (`src/isotope_core/loop.py`)
+### 5. Agent Loop (`src/isotopes_core/loop.py`)
 
 The core execution engine:
 
@@ -111,7 +111,7 @@ Config options:
 - `after_tool_call: async hook → modify result`
 - `transform_context: async hook → prune/modify messages before LLM call`
 
-### 6. Stateful Agent (`src/isotope_core/agent.py`)
+### 6. Stateful Agent (`src/isotopes_core/agent.py`)
 
 ```python
 class Agent:
@@ -146,11 +146,11 @@ class Agent:
 
 ## Branch
 
-`feat/isotope-core/dev-m1`
+`feat/isotopes-core/dev-m1`
 
 ## Definition of Done
 
-- [ ] All types defined and importable from `isotope_core`
+- [ ] All types defined and importable from `isotopes_core`
 - [ ] Provider protocol defined with clear streaming contract
 - [ ] Tool framework with schema validation
 - [ ] Agent loop passes tests with mock provider

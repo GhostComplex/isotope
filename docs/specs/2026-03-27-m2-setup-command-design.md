@@ -112,7 +112,7 @@ def _rebuild_agent(self, *, keep_history=True, new_model=None, new_config=None):
 - Config save after `/setup`
 - Agent rebuild preserves history
 
-### Smoke Tests (superqa-isotope)
+### Smoke Tests (superqa-isotopes)
 - Launch TUI → `/setup` → change model → verify new model used
 - Launch TUI → `/model claude-opus-4.6` → verify switch
 - Launch TUI → `/setup` → change provider → verify hot-swap

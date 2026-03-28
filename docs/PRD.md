@@ -12,17 +12,17 @@ A **mono-repo** containing two Python packages:
 
 | Package | Location | Role |
 |---|---|---|
-| `isotope-core` | `packages/isotope-core/` | LLM providers, agent loop, middleware, events, context |
-| `isotope-agents` | `packages/isotope-agents/` | Agent framework: tools, TUI, sessions, RPC, extensions, presets |
+| `isotopes-core` | `packages/isotopes-core/` | LLM providers, agent loop, middleware, events, context |
+| `isotopes` | `packages/isotopes/` | Agent framework: tools, TUI, sessions, RPC, extensions, presets |
 
-`isotope-core` already exists as a standalone repo (`GhostComplex/isotope-core`, 5.3k LoC, 97% test coverage, async, Pydantic v2). **M0 migrates it into this mono-repo.**
+`isotopes-core` already exists as a standalone repo (`GhostComplex/isotopes-core`, 5.3k LoC, 97% test coverage, async, Pydantic v2). **M0 migrates it into this mono-repo.**
 
-`isotope-agents` builds on top — and starts with existing TUI code from isotope-core.
+`isotopes` builds on top — and starts with existing TUI code from isotopes-core.
 
 Isotope is **role-agnostic**. Presets define tool sets and system prompts; users choose or create their own:
 
 ```yaml
-# ~/.isotope/config.yaml
+# ~/.isotopes/config.yaml
 preset: coding        # or: assistant, minimal, custom
 ```
 
@@ -42,9 +42,9 @@ All tools available to all presets — the table shows defaults. Users override 
 
 Pi-mono is TypeScript. We need Python because:
 
-- Existing backend code depends on isotope-core (Python)
+- Existing backend code depends on isotopes-core (Python)
 - Python AI/ML ecosystem is stronger
-- isotope-core is already built and battle-tested
+- isotopes-core is already built and battle-tested
 
 We take pi-mono's **architecture** (it's good), not its code.
 
@@ -52,7 +52,7 @@ We take pi-mono's **architecture** (it's good), not its code.
 
 ## 3. Starting Point
 
-isotope-core already has a working TUI (`tui/main.py`, ~1060 LoC) with:
+isotopes-core already has a working TUI (`tui/main.py`, ~1060 LoC) with:
 
 - ✅ Claude Code-style steering (type during streaming to redirect)
 - ✅ prompt-toolkit integration (visible input prompt during streaming)
@@ -61,17 +61,17 @@ isotope-core already has a working TUI (`tui/main.py`, ~1060 LoC) with:
 - ✅ Built-in tools: read_file, write_file, edit_file, terminal, get_current_time
 - ✅ Follow-up queuing (/follow) and abort (/abort)
 
-**Strategy:** Migrate isotope-core into this mono-repo (M0), split TUI into components, then extend (M1+).
+**Strategy:** Migrate isotopes-core into this mono-repo (M0), split TUI into components, then extend (M1+).
 
 ---
 
 ## 4. Architecture
 
 ```
-isotope (mono-repo)
+isotopes (mono-repo)
 ├── packages/
-│   ├── isotope-core/              ← migrated from GhostComplex/isotope-core
-│   │   ├── src/isotope_core/
+│   ├── isotopes-core/              ← migrated from GhostComplex/isotopes-core
+│   │   ├── src/isotopes_core/
 │   │   │   ├── agent.py           — stateful Agent wrapper
 │   │   │   ├── loop.py            — agent loop (plan → act → observe → repeat)
 │   │   │   ├── types.py           — Pydantic v2 types
@@ -83,16 +83,16 @@ isotope (mono-repo)
 │   │   ├── tests/
 │   │   └── pyproject.toml
 │   │
-│   └── isotope-agents/            ← new, builds on isotope-core
-│       ├── src/isotope_agents/
-│       │   ├── agent.py           — Agent wrapping isotope-core
+│   └── isotopes/            ← new, builds on isotopes-core
+│       ├── src/isotopes/
+│       │   ├── agent.py           — Agent wrapping isotopes-core
 │       │   ├── presets.py         — role configurations
 │       │   ├── session.py         — session persistence (JSONL)
 │       │   ├── compaction.py      — context compaction (file-aware)
 │       │   ├── config.py          — config file loading
 │       │   ├── cli.py             — CLI entry point
 │       │   ├── tui/
-│       │   │   ├── app.py         — main TUI (from isotope-core tui/)
+│       │   │   ├── app.py         — main TUI (from isotopes-core tui/)
 │       │   │   ├── input.py       — input handling (prompt-toolkit)
 │       │   │   ├── output.py      — output rendering (rich)
 │       │   │   └── commands.py    — slash command handlers
@@ -118,15 +118,15 @@ isotope (mono-repo)
 
 ```bash
 # Interactive TUI
-isotope chat
-isotope chat --preset coding
+isotopes chat
+isotopes chat --preset coding
 
 # One-shot (print mode)
-isotope run "fix the bug in auth.py"
-isotope run --print "summarize this document"
+isotopes run "fix the bug in auth.py"
+isotopes run --print "summarize this document"
 
 # RPC mode (M4)
-isotope rpc
+isotopes rpc
 ```
 
 ---
@@ -140,7 +140,7 @@ Two ways to define tools — pick what fits:
 **`@tool` decorator** (simple tools):
 
 ```python
-from isotope_core import tool
+from isotopes_core import tool
 
 @tool
 async def grep(
@@ -164,7 +164,7 @@ The decorator auto-generates the JSON schema from type hints + docstring. Inspir
 **`Tool()` class** (complex tools needing lifecycle/state):
 
 ```python
-from isotope_core import Tool
+from isotopes_core import Tool
 
 bash_tool = Tool(
     name="bash",
@@ -182,14 +182,14 @@ bash_tool = Tool(
 
 Both produce the same `Tool` object. The `@tool` decorator is sugar, not a separate system.
 
-> **Design note:** The `@tool` decorator lives in `isotope-core` (it's just schema generation + wrapping). Tool *implementations* (bash, read, grep, etc.) live in `isotope-agents`.
+> **Design note:** The `@tool` decorator lives in `isotopes-core` (it's just schema generation + wrapping). Tool *implementations* (bash, read, grep, etc.) live in `isotopes`.
 
 ### 5.2 Tool Output Truncation
 
 All tools producing variable-length output MUST truncate. Utility provided:
 
 ```python
-from isotope_agents.tools import truncate_output
+from isotopes.tools import truncate_output
 
 def execute_grep(pattern: str, path: str) -> str:
     raw = subprocess.run(["rg", pattern, path], capture_output=True).stdout
@@ -219,7 +219,7 @@ Without this, a single `grep` on a large codebase blows the entire context windo
 
 ### Format: Append-only JSONL
 
-Each session is a `.jsonl` file in `~/.isotope/sessions/`:
+Each session is a `.jsonl` file in `~/.isotopes/sessions/`:
 
 ```jsonl
 {"type":"session_start","id":"abc123","timestamp":"...","model":"claude-sonnet-4-20250514","preset":"coding"}
@@ -321,7 +321,7 @@ Events (agent → stdout):
 **Design notes:**
 - Every command has an optional `id` for request-response correlation
 - Events carry `stream_id` to correlate with the agent activity that produced them
-- Maps directly to isotope-core's existing `AgentEvent` types
+- Maps directly to isotopes-core's existing `AgentEvent` types
 - Extensible — new command/event types added without breaking existing consumers
 
 This enables: macOS/iOS app embedding, VS Code extension, web UI backend, CI scripting.
@@ -340,13 +340,13 @@ Isotope adopts the [AgentSkills spec](https://agentskills.io). Restrained implem
 - References loaded on demand
 
 ```yaml
-# ~/.isotope/config.yaml
+# ~/.isotopes/config.yaml
 skills:
-  - ~/.isotope/skills/github/
-  - ~/.isotope/skills/docker/
+  - ~/.isotopes/skills/github/
+  - ~/.isotopes/skills/docker/
 ```
 
-**isotope-core stays skill-unaware.** isotope-agents owns the loader.
+**isotopes-core stays skill-unaware.** isotopes owns the loader.
 
 ### Extensions
 
@@ -354,7 +354,7 @@ skills:
 
 - MCP client — load tools from MCP servers (via `mcp` package)
 - `tools:` config — register additional tools by module path
-- `beforeToolCall` / `afterToolCall` — already in isotope-core middleware
+- `beforeToolCall` / `afterToolCall` — already in isotopes-core middleware
 
 A formal extension API (lifecycle hooks, custom commands, UI components) is post-v1. We don't know what the right API looks like yet — better to wait until we have real extension use cases.
 
@@ -362,7 +362,7 @@ A formal extension API (lifecycle hooks, custom commands, UI components) is post
 
 ## 11. Dependencies
 
-### isotope-core
+### isotopes-core
 
 ```toml
 [project]
@@ -372,23 +372,23 @@ dependencies = ["pydantic>=2.0"]
 openai = ["openai>=1.0"]
 anthropic = ["anthropic>=0.40"]
 tiktoken = ["tiktoken>=0.7"]
-all = ["isotope-core[openai,anthropic,tiktoken]"]
+all = ["isotopes-core[openai,anthropic,tiktoken]"]
 ```
 
-### isotope-agents
+### isotopes
 
 ```toml
 [project]
-dependencies = ["isotope-core>=0.1.1"]
+dependencies = ["isotopes-core>=0.1.1"]
 
 [project.optional-dependencies]
 tui = ["prompt-toolkit>=3.0", "rich>=13.0"]
 search = ["httpx>=0.27"]
 mcp = ["mcp>=1.0"]
-all = ["isotope-agents[tui,search,mcp]"]
+all = ["isotopes[tui,search,mcp]"]
 
 [project.scripts]
-isotope = "isotope_agents.cli:main"
+isotope = "isotopes.cli:main"
 ```
 
 ### Workspace root
@@ -404,16 +404,16 @@ members = ["packages/*"]
 
 ### M0: Core Migration
 
-**Goal:** Migrate isotope-core into the mono-repo. No new features.
+**Goal:** Migrate isotopes-core into the mono-repo. No new features.
 
-- [ ] Set up uv workspace with `packages/isotope-core/` and `packages/isotope-agents/` (stub)
-- [ ] Migrate all isotope-core source, tests, docs
+- [ ] Set up uv workspace with `packages/isotopes-core/` and `packages/isotopes/` (stub)
+- [ ] Migrate all isotopes-core source, tests, docs
 - [ ] Migrate `pyproject.toml` (strip TUI extras)
 - [ ] Move `tui/` temporarily (consumed by M1)
 - [ ] Root `pyproject.toml` with workspace config
 - [ ] Verify: `uv run pytest`, `ruff check`, `mypy` all pass
 - [ ] Update README.md
-- [ ] Archive `GhostComplex/isotope-core` repo
+- [ ] Archive `GhostComplex/isotopes-core` repo
 
 **Ship:** Mono-repo works. All tests pass. Zero functional changes.
 
@@ -423,20 +423,20 @@ members = ["packages/*"]
 
 **Goal:** Working CLI agent with modular tools and presets.
 
-- [ ] `@tool` decorator in isotope-core (schema from type hints + docstring)
-- [ ] Lift TUI → `isotope_agents/tui/` (app.py, input.py, output.py, commands.py)
-- [ ] Extract tools → `isotope_agents/tools/` (bash, read, write, edit)
+- [ ] `@tool` decorator in isotopes-core (schema from type hints + docstring)
+- [ ] Lift TUI → `isotopes/tui/` (app.py, input.py, output.py, commands.py)
+- [ ] Extract tools → `isotopes/tools/` (bash, read, write, edit)
 - [ ] Tool output truncation utility (`truncate_output()`)
 - [ ] New tools: `GrepTool`, `GlobTool`
 - [ ] Preset system (`coding`, `assistant`, `minimal`)
-- [ ] Agent class wrapping isotope-core with preset-based tool registration
-- [ ] CLI: `isotope chat` (TUI) + `isotope run "prompt"` (print mode)
+- [ ] Agent class wrapping isotopes-core with preset-based tool registration
+- [ ] CLI: `isotopes chat` (TUI) + `isotopes run "prompt"` (print mode)
 - [ ] `--preset` flag
-- [ ] Remove `tui/` from isotope-core
+- [ ] Remove `tui/` from isotopes-core
 - [ ] Tests
 - [ ] PyPI release
 
-**Ship:** `pip install isotope-agents[tui]` → `isotope chat --preset coding` works with all existing features + grep/glob + truncation.
+**Ship:** `pip install isotopes[tui]` → `isotopes chat --preset coding` works with all existing features + grep/glob + truncation.
 
 ---
 
@@ -444,14 +444,14 @@ members = ["packages/*"]
 
 **Goal:** Persistent sessions, polished output, loop safety.
 
-- [ ] JSONL session persistence (`~/.isotope/sessions/`)
-- [ ] Session listing (`isotope sessions` / `/sessions`)
-- [ ] Session resume (`isotope chat --session <id>`)
+- [ ] JSONL session persistence (`~/.isotopes/sessions/`)
+- [ ] Session listing (`isotopes sessions` / `/sessions`)
+- [ ] Session resume (`isotopes chat --session <id>`)
 - [ ] Auto-save on exit
 - [ ] Markdown rendering with rich
 - [ ] Syntax highlighting for code blocks
 - [ ] Loop detection (repeated tool calls → steering injection)
-- [ ] Config file (`~/.isotope/config.yaml`)
+- [ ] Config file (`~/.isotopes/config.yaml`)
 
 **Ship:** Sessions persist. Output looks good. Agent doesn't get stuck in loops.
 
@@ -475,13 +475,13 @@ members = ["packages/*"]
 **Goal:** Embeddable agent. Skill loading. External tools via MCP.
 
 - [ ] RPC mode (JSONL stdin/stdout, commands listed in §9)
-- [ ] `isotope rpc` command
+- [ ] `isotopes rpc` command
 - [ ] Skill loader (AgentSkills spec, frontmatter scan + lazy load)
 - [ ] MCP client (load tools from MCP servers)
 - [ ] `tools:` config (register tools by module path)
 - [ ] Documentation
 
-**Ship:** `isotope rpc` works for embedding. Skills loadable from directories. MCP tools loadable.
+**Ship:** `isotopes rpc` works for embedding. Skills loadable from directories. MCP tools loadable.
 
 ---
 
@@ -515,4 +515,4 @@ Decisions made during PRD development, for future reference:
 | No extension API in v1 | Don't know the right API yet — hooks + MCP + config covers 80% | Full plugin system (rejected: premature abstraction) |
 | RPC in M4 not M1 | Need stable tool/session APIs before exposing them via RPC | RPC in M1 (rejected: API too unstable) |
 | File-aware compaction | Agent forgets file context after naive summarization | Simple summarization (rejected: loses file tracking) |
-| Tools in isotope-agents | Keep isotope-core generic — tool implementations are opinionated | Tools in core (rejected: core should stay minimal) |
+| Tools in isotopes | Keep isotopes-core generic — tool implementations are opinionated | Tools in core (rejected: core should stay minimal) |

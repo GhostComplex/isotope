@@ -1,4 +1,4 @@
-# isotope-core — Milestone 3: Context Management
+# isotopes-core — Milestone 3: Context Management
 
 ## Objective
 
@@ -11,7 +11,7 @@ Implement context window management — token counting, overflow detection, and 
 
 ## Deliverables
 
-### 1. Token Counting (`src/isotope_core/context.py`)
+### 1. Token Counting (`src/isotopes_core/context.py`)
 
 Token counting utilities:
 
@@ -155,7 +155,7 @@ def create_summarization_transform(
 
 ## Technical Constraints
 
-- `tiktoken` is an optional dependency (install via `uv add "isotope-core[tiktoken]"`)
+- `tiktoken` is an optional dependency (install via `uv add "isotopes-core[tiktoken]"`)
 - Fallback token counting must work without tiktoken
 - Pruning strategies must never drop pinned messages
 - Summarization strategy must use the existing Provider protocol
@@ -164,7 +164,7 @@ def create_summarization_transform(
 
 ## Branch
 
-`feat/isotope-core/dev-m3`
+`feat/isotopes-core/dev-m3`
 
 ## Definition of Done
 
